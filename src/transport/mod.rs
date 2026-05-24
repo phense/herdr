@@ -86,16 +86,22 @@ mod tests {
     use std::time::Duration;
 
     fn unique_endpoint_path(label: &str) -> std::path::PathBuf {
+        // macOS's `sun_path` is 104 bytes including the trailing NUL, and the
+        // per-user TMPDIR (~57 bytes for `/private/var/folders/<2>/<30>/T/`)
+        // can blow past that budget the moment we add a subdirectory plus a
+        // descriptive label. Hash the inputs into a short filename and live
+        // directly in temp_dir so the path stays under the cap on every host.
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
         let nanos = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_nanos())
             .unwrap_or(0);
-        let dir = std::env::temp_dir().join(format!(
-            "herdr-transport-{label}-{}-{nanos}",
-            std::process::id()
-        ));
-        std::fs::create_dir_all(&dir).expect("create test dir");
-        dir.join(format!("{label}.sock"))
+        let mut hasher = DefaultHasher::new();
+        label.hash(&mut hasher);
+        std::process::id().hash(&mut hasher);
+        nanos.hash(&mut hasher);
+        std::env::temp_dir().join(format!("ht-{:016x}.sock", hasher.finish()))
     }
 
     #[test]
@@ -237,7 +243,7 @@ mod tests {
 
         assert_eq!(&server_recv, b"ping");
         assert_eq!(&resp, b"pong");
-        let _ = std::fs::remove_dir_all(path.parent().unwrap());
+        let _ = std::fs::remove_file(&path);
     }
 
     #[test]
@@ -247,7 +253,7 @@ mod tests {
         listener.set_nonblocking(true).expect("nb");
         let err = listener.accept().expect_err("accept should fail");
         assert_eq!(err.kind(), io::ErrorKind::WouldBlock);
-        let _ = std::fs::remove_dir_all(path.parent().unwrap());
+        let _ = std::fs::remove_file(&path);
     }
 
     #[test]
@@ -274,7 +280,7 @@ mod tests {
         let err = prepare_socket_path(&path, |p| format!("busy at {}", p.display()))
             .expect_err("should be busy");
         assert_eq!(err.kind(), io::ErrorKind::AddrInUse);
-        let _ = std::fs::remove_dir_all(path.parent().unwrap());
+        let _ = std::fs::remove_file(&path);
     }
 
     #[test]
@@ -285,7 +291,7 @@ mod tests {
         // On unix it chmods the socket file to 0o600.
         let res = restrict_socket_permissions(&path, 0o600);
         assert!(res.is_ok(), "restrict_socket_permissions: {res:?}");
-        let _ = std::fs::remove_dir_all(path.parent().unwrap());
+        let _ = std::fs::remove_file(&path);
     }
 
     #[test]
@@ -303,7 +309,7 @@ mod tests {
             "unexpected kind: {:?}",
             err.kind()
         );
-        let _ = std::fs::remove_dir_all(path.parent().unwrap());
+        let _ = std::fs::remove_file(&path);
     }
 
     #[test]
