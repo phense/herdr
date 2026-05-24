@@ -10,7 +10,7 @@ use std::os::unix::net::UnixStream;
 use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard, OnceLock};
 use std::thread;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant};
 
 use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtySize};
 use serde::Deserialize;
@@ -22,14 +22,7 @@ use support::{
 };
 
 fn unique_test_dir() -> PathBuf {
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    PathBuf::from(format!(
-        "/tmp/herdr-client-test-{}-{nanos}",
-        std::process::id()
-    ))
+    support::local_socket::unique_test_base("herdr-client-test")
 }
 
 struct SpawnedHerdr {

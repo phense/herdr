@@ -740,13 +740,19 @@ mod tests {
         assert_eq!(snap.version, 2);
         assert_eq!(snap.workspaces.len(), 1);
         assert_eq!(ws.custom_name.as_deref(), Some("legacy"));
-        assert_eq!(ws.identity_cwd, PathBuf::from("/tmp/pion"));
+        assert_eq!(ws.identity_cwd, PathBuf::from("/var/lib/herdr/pion"));
         assert_eq!(ws.active_tab, 0);
         assert_eq!(ws.tabs.len(), 1);
         assert_eq!(ws.tabs[0].focused, Some(1));
         assert_eq!(ws.tabs[0].root_pane, Some(0));
-        assert_eq!(ws.tabs[0].panes[&0].cwd, PathBuf::from("/tmp/pion"));
-        assert_eq!(ws.tabs[0].panes[&1].cwd, PathBuf::from("/tmp/herdr"));
+        assert_eq!(
+            ws.tabs[0].panes[&0].cwd,
+            PathBuf::from("/var/lib/herdr/pion")
+        );
+        assert_eq!(
+            ws.tabs[0].panes[&1].cwd,
+            PathBuf::from("/var/lib/herdr/herdr")
+        );
     }
 
     #[test]

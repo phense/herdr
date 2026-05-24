@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 
+pub mod local_socket;
+
 use std::collections::HashSet;
 use std::fs;
 use std::io::{Read, Write};

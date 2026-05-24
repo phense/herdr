@@ -17,10 +17,10 @@
       },
       "panes": {
         "0": {
-          "cwd": "/tmp/pion"
+          "cwd": "/var/lib/herdr/pion"
         },
         "1": {
-          "cwd": "/tmp/herdr"
+          "cwd": "/var/lib/herdr/herdr"
         }
       },
       "zoomed": false,

@@ -21,14 +21,7 @@ use support::{
 };
 
 fn unique_test_dir() -> PathBuf {
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    PathBuf::from(format!(
-        "/tmp/herdr-multi-client-test-{}-{nanos}",
-        std::process::id()
-    ))
+    support::local_socket::unique_test_base("herdr-multi-client-test")
 }
 
 struct SpawnedHerdr {
