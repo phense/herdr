@@ -4,7 +4,7 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
   push:
-    branches: [master]
+    branches: [master, "windows-port"]
     paths-ignore:
       - "website/**"
 
@@ -54,3 +54,42 @@ jobs:
 
       - name: Run checks
         run: just ci
+
+  windows-smoke:
+    name: windows-smoke
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Install Rust tools
+        uses: taiki-e/install-action@b550161ef8a7bc4f2a671c0b03a18ac9ccedea1e # v2
+        with:
+          tool: cargo-nextest
+
+      - name: Install Zig
+        uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        with:
+          version: 0.15.2
+
+      - name: Restore cargo cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-bin: false
+          key: windows-smoke
+
+      - name: cargo build --release --locked
+        shell: pwsh
+        run: cargo build --release --locked --target x86_64-pc-windows-msvc
+
+      - name: cargo nextest run
+        shell: pwsh
+        run: cargo nextest run --no-default-features --workspace --target x86_64-pc-windows-msvc -E "not test(/integration_unix/)"
