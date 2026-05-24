@@ -1,14 +1,29 @@
+// On Windows the existing modules below still depend on `std::os::unix::*`
+// imports (sockets, permissions, signals, process groups). Goals 1–7 in
+// docs/plans/windows-port/GOALS.md replace those with cross-platform
+// equivalents. Until those goals land we gate the entire existing binary on
+// `cfg(unix)`; Windows gets a minimal stub `main` that points operators at
+// the port roadmap. This keeps `cargo check --target x86_64-pc-windows-msvc`
+// green without modifying any code in src/server, src/client, src/api or
+// src/transport (Goal 0's constraint).
+
+#[cfg(unix)]
 use std::io;
 
+#[cfg(unix)]
 use crossterm::event::{
     DisableBracketedPaste, DisableFocusChange, DisableMouseCapture, EnableBracketedPaste,
     EnableFocusChange, EnableMouseCapture, PopKeyboardEnhancementFlags,
     PushKeyboardEnhancementFlags,
 };
+#[cfg(unix)]
 use crossterm::execute;
 
+#[cfg(unix)]
 pub(crate) const HERDR_ENV_VAR: &str = "HERDR_ENV";
+#[cfg(unix)]
 pub(crate) const HERDR_ENV_VALUE: &str = "1";
+#[cfg(unix)]
 const NESTED_HERDR_MESSAGES: [&str; 6] = [
     "inception detected. we need to go deeper... said no one ever.",
     "recursion is a pathway to many abilities some consider to be... unnatural.",
@@ -18,45 +33,47 @@ const NESTED_HERDR_MESSAGES: [&str; 6] = [
     "recursion detected. base case not found. aborting.",
 ];
 
-mod agent_resume;
-mod api;
-mod app;
-mod cli;
-mod client;
-mod config;
-mod detect;
-mod events;
-mod ghostty;
-mod input;
-mod integration;
-mod ipc;
-mod kitty_graphics;
-mod layout;
-mod logging;
-mod pane;
-mod persist;
-mod platform;
-mod product_announcements;
-mod protocol;
-mod raw_input;
-mod release_notes;
-mod remote;
-mod selection;
-mod server;
-mod session;
-mod sound;
-mod terminal;
-mod terminal_notify;
-mod terminal_theme;
-mod ui;
-mod update;
-mod workspace;
-mod worktree;
+#[cfg(unix)] mod agent_resume;
+#[cfg(unix)] mod api;
+#[cfg(unix)] mod app;
+#[cfg(unix)] mod cli;
+#[cfg(unix)] mod client;
+#[cfg(unix)] mod config;
+#[cfg(unix)] mod detect;
+#[cfg(unix)] mod events;
+#[cfg(unix)] mod ghostty;
+#[cfg(unix)] mod input;
+#[cfg(unix)] mod integration;
+#[cfg(unix)] mod ipc;
+#[cfg(unix)] mod kitty_graphics;
+#[cfg(unix)] mod layout;
+#[cfg(unix)] mod logging;
+#[cfg(unix)] mod pane;
+#[cfg(unix)] mod persist;
+#[cfg(unix)] mod platform;
+#[cfg(unix)] mod product_announcements;
+#[cfg(unix)] mod protocol;
+#[cfg(unix)] mod raw_input;
+#[cfg(unix)] mod release_notes;
+#[cfg(unix)] mod remote;
+#[cfg(unix)] mod selection;
+#[cfg(unix)] mod server;
+#[cfg(unix)] mod session;
+#[cfg(unix)] mod sound;
+#[cfg(unix)] mod terminal;
+#[cfg(unix)] mod terminal_notify;
+#[cfg(unix)] mod terminal_theme;
+#[cfg(unix)] mod ui;
+#[cfg(unix)] mod update;
+#[cfg(unix)] mod workspace;
+#[cfg(unix)] mod worktree;
 
+#[cfg(unix)]
 fn init_logging() {
     crate::logging::init_file_logging("herdr.log");
 }
 
+#[cfg(unix)]
 const DEFAULT_CONFIG: &str = r##"# herdr configuration
 # Place this file at ~/.config/herdr/config.toml
 
@@ -257,14 +274,17 @@ pane_history = false
 # scrollback_limit_bytes = 10000000
 "##;
 
+#[cfg(unix)]
 fn should_block_nested(config: &config::Config) -> bool {
     should_block_nested_for_env(config, std::env::var(HERDR_ENV_VAR).ok().as_deref())
 }
 
+#[cfg(unix)]
 fn should_block_nested_for_env(config: &config::Config, herdr_env: Option<&str>) -> bool {
     !config.experimental.allow_nested && herdr_env == Some(HERDR_ENV_VALUE)
 }
 
+#[cfg(unix)]
 fn random_nested_message() -> &'static str {
     use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -276,6 +296,7 @@ fn random_nested_message() -> &'static str {
     NESTED_HERDR_MESSAGES[index]
 }
 
+#[cfg(unix)]
 fn exit_if_nested_disabled(config: &config::Config) {
     if should_block_nested(config) {
         eprintln!("\x1b[1merror:\x1b[0m nested herdr is disabled by default.");
@@ -286,6 +307,25 @@ fn exit_if_nested_disabled(config: &config::Config) {
     }
 }
 
+#[cfg(not(unix))]
+fn main() -> std::io::Result<()> {
+    // Windows port stub. See docs/plans/windows-port/PLAN.md for the full
+    // migration plan and docs/plans/windows-port/GOALS.md for the
+    // `/goal`-compatible execution checklist. Goals 1–7 progressively port
+    // each unix-coupled module; until they land, the binary just prints a
+    // pointer at the docs and exits non-zero.
+    eprintln!(
+        "herdr does not yet run on this platform. See docs/plans/windows-port/PLAN.md.\n\
+         Toolchain prereqs (per docs/plans/windows-port/LIBGHOSTTY-WINDOWS-NOTES.md):\n\
+           - rustup target add x86_64-pc-windows-msvc\n\
+           - install Zig 0.15.2\n\
+           - install Visual Studio Build Tools (Desktop development with C++).\n\
+         Then track progress via the /goal conditions in GOALS.md."
+    );
+    std::process::exit(2);
+}
+
+#[cfg(unix)]
 fn main() -> io::Result<()> {
     let raw_args: Vec<String> = std::env::args().collect();
     let args = match session::configure_from_args(&raw_args) {
@@ -638,7 +678,7 @@ fn main() -> io::Result<()> {
     result
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
 
