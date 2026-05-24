@@ -17,14 +17,43 @@ const OMP_EXTENSION_INSTALL_NAME: &str = "herdr-omp-agent-state.ts";
 const OMP_EXTENSION_ASSET: &str = include_str!("assets/omp/herdr-agent-state.ts");
 const OMP_INTEGRATION_VERSION: u32 = 1;
 const PI_CODING_AGENT_DIR_ENV_VAR: &str = "PI_CODING_AGENT_DIR";
+// The claude/codex hooks ship as a POSIX shell script on unix and a
+// PowerShell script on windows. Both forks live under
+// `src/integration/assets/{claude,codex}/`; `install_*` picks the right
+// asset at compile time so unix users still see herdr-agent-state.sh and
+// windows users see herdr-agent-state.ps1.
+#[cfg(not(windows))]
 const CLAUDE_HOOK_INSTALL_NAME: &str = "herdr-agent-state.sh";
+#[cfg(windows)]
+const CLAUDE_HOOK_INSTALL_NAME: &str = "herdr-agent-state.ps1";
+#[cfg(not(windows))]
 const CLAUDE_HOOK_ASSET: &str = include_str!("assets/claude/herdr-agent-state.sh");
+#[cfg(windows)]
+const CLAUDE_HOOK_ASSET: &str = include_str!("assets/claude/herdr-agent-state.ps1");
 const CLAUDE_INTEGRATION_VERSION: u32 = 4;
 const CLAUDE_CONFIG_DIR_ENV_VAR: &str = "CLAUDE_CONFIG_DIR";
+#[cfg(not(windows))]
 const CODEX_HOOK_INSTALL_NAME: &str = "herdr-agent-state.sh";
+#[cfg(windows)]
+const CODEX_HOOK_INSTALL_NAME: &str = "herdr-agent-state.ps1";
+#[cfg(not(windows))]
 const CODEX_HOOK_ASSET: &str = include_str!("assets/codex/herdr-agent-state.sh");
+#[cfg(windows)]
+const CODEX_HOOK_ASSET: &str = include_str!("assets/codex/herdr-agent-state.ps1");
 const CODEX_INTEGRATION_VERSION: u32 = 4;
 const CODEX_HOME_ENV_VAR: &str = "CODEX_HOME";
+
+/// Render the command the agent's settings file will write to disk to invoke
+/// the herdr hook. On unix that's a POSIX `bash {path} {action}` call; on
+/// windows it's `pwsh -NoProfile -File {path} {action}` so the .ps1 sibling
+/// runs without requiring an extra wrapper.
+fn hook_invocation(quoted_hook_path: &str, action: &str) -> String {
+    if cfg!(windows) {
+        format!("pwsh -NoProfile -File {quoted_hook_path} {action}")
+    } else {
+        format!("bash {quoted_hook_path} {action}")
+    }
+}
 const OPENCODE_PLUGIN_INSTALL_NAME: &str = "herdr-agent-state.js";
 const OPENCODE_PLUGIN_ASSET: &str = include_str!("assets/opencode/herdr-agent-state.js");
 const OPENCODE_INTEGRATION_VERSION: u32 = 2;
@@ -671,57 +700,57 @@ pub(crate) fn install_claude() -> io::Result<ClaudeInstallPaths> {
     remove_command_hook(
         hooks,
         "PostToolUse",
-        &format!("bash {quoted_hook_path} working"),
+        &hook_invocation(&quoted_hook_path, "working"),
     )?;
     remove_command_hook(
         hooks,
         "PostToolUseFailure",
-        &format!("bash {quoted_hook_path} working"),
+        &hook_invocation(&quoted_hook_path, "working"),
     )?;
     remove_command_hook(
         hooks,
         "SubagentStop",
-        &format!("bash {quoted_hook_path} working"),
+        &hook_invocation(&quoted_hook_path, "working"),
     )?;
     ensure_command_hook(
         hooks,
         "SessionStart",
-        format!("bash {quoted_hook_path} idle"),
+        hook_invocation(&quoted_hook_path, "idle"),
         10,
         Some("*"),
     )?;
     ensure_command_hook(
         hooks,
         "UserPromptSubmit",
-        format!("bash {quoted_hook_path} working"),
+        hook_invocation(&quoted_hook_path, "working"),
         10,
         Some("*"),
     )?;
     ensure_command_hook(
         hooks,
         "PreToolUse",
-        format!("bash {quoted_hook_path} working"),
+        hook_invocation(&quoted_hook_path, "working"),
         10,
         Some("*"),
     )?;
     ensure_command_hook(
         hooks,
         "PermissionRequest",
-        format!("bash {quoted_hook_path} blocked"),
+        hook_invocation(&quoted_hook_path, "blocked"),
         10,
         Some("*"),
     )?;
     ensure_command_hook(
         hooks,
         "Stop",
-        format!("bash {quoted_hook_path} idle"),
+        hook_invocation(&quoted_hook_path, "idle"),
         10,
         Some("*"),
     )?;
     ensure_command_hook(
         hooks,
         "SessionEnd",
-        format!("bash {quoted_hook_path} release"),
+        hook_invocation(&quoted_hook_path, "release"),
         10,
         Some("*"),
     )?;
@@ -766,35 +795,35 @@ pub(crate) fn install_codex() -> io::Result<CodexInstallPaths> {
     ensure_command_hook(
         hooks,
         "SessionStart",
-        format!("bash {quoted_hook_path} idle"),
+        hook_invocation(&quoted_hook_path, "idle"),
         10,
         None,
     )?;
     ensure_command_hook(
         hooks,
         "UserPromptSubmit",
-        format!("bash {quoted_hook_path} working"),
+        hook_invocation(&quoted_hook_path, "working"),
         10,
         None,
     )?;
     ensure_command_hook(
         hooks,
         "PreToolUse",
-        format!("bash {quoted_hook_path} working"),
+        hook_invocation(&quoted_hook_path, "working"),
         10,
         None,
     )?;
     ensure_command_hook(
         hooks,
         "PermissionRequest",
-        format!("bash {quoted_hook_path} blocked"),
+        hook_invocation(&quoted_hook_path, "blocked"),
         10,
         None,
     )?;
     ensure_command_hook(
         hooks,
         "Stop",
-        format!("bash {quoted_hook_path} idle"),
+        hook_invocation(&quoted_hook_path, "idle"),
         10,
         None,
     )?;
@@ -918,44 +947,44 @@ pub(crate) fn uninstall_claude() -> io::Result<ClaudeUninstallResult> {
             updated_settings |= remove_command_hook(
                 hooks,
                 "SessionStart",
-                &format!("bash {quoted_hook_path} idle"),
+                &hook_invocation(&quoted_hook_path, "idle"),
             )?;
             updated_settings |= remove_command_hook(
                 hooks,
                 "UserPromptSubmit",
-                &format!("bash {quoted_hook_path} working"),
+                &hook_invocation(&quoted_hook_path, "working"),
             )?;
             updated_settings |= remove_command_hook(
                 hooks,
                 "PreToolUse",
-                &format!("bash {quoted_hook_path} working"),
+                &hook_invocation(&quoted_hook_path, "working"),
             )?;
             updated_settings |= remove_command_hook(
                 hooks,
                 "PermissionRequest",
-                &format!("bash {quoted_hook_path} blocked"),
+                &hook_invocation(&quoted_hook_path, "blocked"),
             )?;
             updated_settings |= remove_command_hook(
                 hooks,
                 "PostToolUse",
-                &format!("bash {quoted_hook_path} working"),
+                &hook_invocation(&quoted_hook_path, "working"),
             )?;
             updated_settings |= remove_command_hook(
                 hooks,
                 "PostToolUseFailure",
-                &format!("bash {quoted_hook_path} working"),
+                &hook_invocation(&quoted_hook_path, "working"),
             )?;
             updated_settings |= remove_command_hook(
                 hooks,
                 "SubagentStop",
-                &format!("bash {quoted_hook_path} working"),
+                &hook_invocation(&quoted_hook_path, "working"),
             )?;
             updated_settings |=
-                remove_command_hook(hooks, "Stop", &format!("bash {quoted_hook_path} idle"))?;
+                remove_command_hook(hooks, "Stop", &hook_invocation(&quoted_hook_path, "idle"))?;
             updated_settings |= remove_command_hook(
                 hooks,
                 "SessionEnd",
-                &format!("bash {quoted_hook_path} release"),
+                &hook_invocation(&quoted_hook_path, "release"),
             )?;
         }
 
@@ -997,25 +1026,25 @@ pub(crate) fn uninstall_codex() -> io::Result<CodexUninstallResult> {
             updated_hooks |= remove_command_hook(
                 hooks,
                 "SessionStart",
-                &format!("bash {quoted_hook_path} idle"),
+                &hook_invocation(&quoted_hook_path, "idle"),
             )?;
             updated_hooks |= remove_command_hook(
                 hooks,
                 "UserPromptSubmit",
-                &format!("bash {quoted_hook_path} working"),
+                &hook_invocation(&quoted_hook_path, "working"),
             )?;
             updated_hooks |= remove_command_hook(
                 hooks,
                 "PreToolUse",
-                &format!("bash {quoted_hook_path} working"),
+                &hook_invocation(&quoted_hook_path, "working"),
             )?;
             updated_hooks |= remove_command_hook(
                 hooks,
                 "PermissionRequest",
-                &format!("bash {quoted_hook_path} blocked"),
+                &hook_invocation(&quoted_hook_path, "blocked"),
             )?;
             updated_hooks |=
-                remove_command_hook(hooks, "Stop", &format!("bash {quoted_hook_path} idle"))?;
+                remove_command_hook(hooks, "Stop", &hook_invocation(&quoted_hook_path, "idle"))?;
         }
 
         if updated_hooks {
@@ -2620,11 +2649,56 @@ mod tests {
         assert!(PI_EXTENSION_ASSET.contains("agent_session_id: currentAgentSessionId"));
         assert!(PI_EXTENSION_ASSET.contains("publishState(true)"));
         assert!(CLAUDE_HOOK_ASSET.contains("agent_session_id"));
+        // HERDR_HOOK_INPUT_FILE is a .sh-only mechanism (the bash sibling
+        // writes hook stdin to a tempfile and re-opens it from a python
+        // heredoc); the .ps1 sibling reads stdin directly. Only assert the
+        // marker when the unix asset is the one compiled in.
+        #[cfg(not(windows))]
         assert!(CODEX_HOOK_ASSET.contains("HERDR_HOOK_INPUT_FILE"));
         assert!(CODEX_HOOK_ASSET.contains("agent_session_id"));
         assert!(OPENCODE_PLUGIN_ASSET.contains("properties?.sessionID"));
         assert!(OPENCODE_PLUGIN_ASSET.contains("agent_session_id: sessionID"));
         assert!(HERMES_PLUGIN_INIT_ASSET.contains("session_id = _session_id(kwargs)"));
         assert!(HERMES_PLUGIN_INIT_ASSET.contains("agent_session_id"));
+    }
+
+    #[test]
+    fn hook_install_name_matches_host_platform() {
+        if cfg!(windows) {
+            assert!(CLAUDE_HOOK_INSTALL_NAME.ends_with(".ps1"));
+            assert!(CODEX_HOOK_INSTALL_NAME.ends_with(".ps1"));
+        } else {
+            assert!(CLAUDE_HOOK_INSTALL_NAME.ends_with(".sh"));
+            assert!(CODEX_HOOK_INSTALL_NAME.ends_with(".sh"));
+        }
+    }
+
+    #[test]
+    fn hook_asset_matches_host_platform() {
+        // The .ps1 forks emit a self-test acknowledgement string under
+        // `--self-test`; the .sh forks set HERDR_INTEGRATION_VERSION via a
+        // shell comment. Either marker proves the right fork was inlined.
+        if cfg!(windows) {
+            assert!(CLAUDE_HOOK_ASSET.contains("herdr-claude-ps1-ok"));
+            assert!(CODEX_HOOK_ASSET.contains("herdr-codex-ps1-ok"));
+        } else {
+            assert!(CLAUDE_HOOK_ASSET.contains("#!/bin/sh"));
+            assert!(CODEX_HOOK_ASSET.contains("#!/bin/sh"));
+        }
+    }
+
+    #[test]
+    fn hook_invocation_uses_pwsh_on_windows_and_bash_on_unix() {
+        let cmd = hook_invocation("/tmp/x", "idle");
+        if cfg!(windows) {
+            assert!(
+                cmd.starts_with("pwsh -NoProfile -File "),
+                "windows hook invocation: {cmd}"
+            );
+            assert!(cmd.ends_with(" idle"), "windows hook invocation: {cmd}");
+        } else {
+            assert!(cmd.starts_with("bash "), "unix hook invocation: {cmd}");
+            assert!(cmd.ends_with(" idle"), "unix hook invocation: {cmd}");
+        }
     }
 }
