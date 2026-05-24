@@ -40,9 +40,11 @@ const NESTED_HERDR_MESSAGES: [&str; 6] = [
 mod config;
 mod detect;
 mod input;
+mod ipc;
 mod platform;
 mod session;
 mod sound;
+mod transport;
 
 #[cfg(unix)] mod agent_resume;
 #[cfg(unix)] mod api;
@@ -52,7 +54,6 @@ mod sound;
 #[cfg(unix)] mod events;
 #[cfg(unix)] mod ghostty;
 #[cfg(unix)] mod integration;
-#[cfg(unix)] mod ipc;
 #[cfg(unix)] mod kitty_graphics;
 #[cfg(unix)] mod layout;
 #[cfg(unix)] mod logging;
