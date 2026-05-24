@@ -317,52 +317,23 @@ fn shutdown_pane_processes(pane_id: PaneId, child_pid: u32) {
 }
 
 fn pane_shell(configured_shell: &str) -> String {
-    pane_shell_from(configured_shell, std::env::var("SHELL").ok())
+    crate::platform::shell::pane_shell(configured_shell)
 }
 
+#[cfg(test)]
 fn pane_shell_from(configured_shell: &str, env_shell: Option<String>) -> String {
-    let configured_shell = configured_shell.trim();
-    if !configured_shell.is_empty() {
-        return configured_shell.to_string();
-    }
-
-    env_shell
-        .map(|shell| shell.trim().to_string())
-        .filter(|shell| !shell.is_empty())
-        .unwrap_or_else(|| "/bin/sh".into())
+    crate::platform::shell::pane_shell_from(configured_shell, env_shell)
 }
-
-const RESTORE_WRAPPER_SCRIPT: &str = r#"agent="$1"
-fallback_shell="$2"
-early_window="$3"
-shift 3
-	start="$(date +%s 2>/dev/null || printf 0)"
-	"$@"
-	status="$?"
-	end="$(date +%s 2>/dev/null || printf 999999)"
-	elapsed="$((end - start))"
-	if [ "$status" -ne 0 ] && [ "$elapsed" -le "$early_window" ]; then
-	  printf 'herdr: %s session restore failed; started a shell instead\n' "$agent"
-	fi
-	exec "$fallback_shell"
-	"#;
 
 fn restore_command_args(agent: &str, fallback_shell: &str, argv: &[String]) -> Vec<String> {
-    let mut args = vec![
-        "-c".to_string(),
-        RESTORE_WRAPPER_SCRIPT.to_string(),
-        "herdr-agent-restore".to_string(),
-        agent.to_string(),
-        fallback_shell.to_string(),
-        "30".to_string(),
-    ];
-    args.extend(argv.iter().cloned());
+    let (_program, args) = crate::platform::shell::restore_command_args(agent, fallback_shell, argv);
     args
 }
 
 fn restore_command_builder(agent: &str, fallback_shell: &str, argv: &[String]) -> CommandBuilder {
-    let mut cmd = CommandBuilder::new("/bin/sh");
-    for arg in restore_command_args(agent, fallback_shell, argv) {
+    let (program, args) = crate::platform::shell::restore_command_args(agent, fallback_shell, argv);
+    let mut cmd = CommandBuilder::new(&program);
+    for arg in args {
         cmd.arg(arg);
     }
     cmd
@@ -455,9 +426,11 @@ impl PaneRuntime {
         render_notify: Arc<Notify>,
         render_dirty: Arc<AtomicBool>,
     ) -> std::io::Result<Self> {
-        let mut cmd = CommandBuilder::new("/bin/sh");
-        cmd.arg("-c");
-        cmd.arg(command);
+        let (program, args) = crate::platform::shell::shell_command_args(command);
+        let mut cmd = CommandBuilder::new(&program);
+        for arg in args {
+            cmd.arg(arg);
+        }
         cmd.cwd(cwd);
         cmd.env(crate::HERDR_ENV_VAR, crate::HERDR_ENV_VALUE);
         apply_pane_terminal_env(&mut cmd);
@@ -630,6 +603,14 @@ impl PaneRuntime {
                         if let Some(pid) = child.process_id() {
                             child_pid.store(pid, Ordering::Release);
                             crate::logging::pane_spawned(pane_id.raw(), pid);
+                            // On windows, attach the new child to a kill-on-close
+                            // Job Object so dropping the runtime / herdr exit tears
+                            // down the whole process tree (Goal 5.4). On unix this
+                            // is a no-op; pgid-based cleanup runs from
+                            // shutdown_pane_processes instead.
+                            if let Err(err) = crate::platform::assign_to_job(pid) {
+                                warn!(pane = pane_id.raw(), pid, err = %err, "failed to assign pane child to job object");
+                            }
                         }
                         match child.wait() {
                             Ok(status) => {

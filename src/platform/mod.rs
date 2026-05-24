@@ -81,6 +81,8 @@ pub(crate) fn read_limited_reader(
     }
 }
 
+pub mod shell;
+
 #[cfg(target_os = "linux")]
 mod linux;
 #[cfg(target_os = "linux")]
