@@ -16,9 +16,7 @@
 //!   next to the "socket" (e.g. lockfiles).
 
 use std::io;
-use std::net::Shutdown;
 use std::path::Path;
-use std::time::Duration;
 
 #[cfg(unix)]
 mod unix;
@@ -73,16 +71,13 @@ pub(crate) fn make_io_err(kind: io::ErrorKind, msg: impl Into<String>) -> io::Er
     io::Error::new(kind, msg.into())
 }
 
-/// Re-export of `std::net::Shutdown` for ergonomics — callers shouldn't
-/// have to import it separately when they already pulled in the transport
-/// module.
-pub use std::net::Shutdown as ShutdownHow;
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::io::{Read, Write};
+    use std::net::Shutdown;
     use std::thread;
+    use std::time::Duration;
 
     fn unique_endpoint_path(label: &str) -> std::path::PathBuf {
         let nanos = std::time::SystemTime::now()

@@ -53,9 +53,11 @@ pub fn start_server(
     let running = Arc::new(AtomicBool::new(true));
     let listener_running = Arc::clone(&running);
     let thread = std::thread::spawn(move || {
-        for stream in listener.incoming() {
-            match stream {
-                Ok(stream) => {
+        // `LocalListener` does not expose the unix `incoming()` iterator; loop
+        // on `accept` instead so the same code path covers both backends.
+        loop {
+            match listener.accept() {
+                Ok((stream, _addr)) => {
                     let api_tx = api_tx.clone();
                     let event_hub = event_hub.clone();
                     let connection_running = Arc::clone(&listener_running);

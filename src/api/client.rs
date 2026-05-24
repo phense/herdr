@@ -121,7 +121,7 @@ impl ApiClient {
     }
 
     fn connect(&self) -> io::Result<LocalStream> {
-        LocalStream::connect(self.socket_path())
+        LocalStream::connect(&self.socket_path())
     }
 }
 
