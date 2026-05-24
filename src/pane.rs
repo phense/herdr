@@ -326,7 +326,8 @@ fn pane_shell_from(configured_shell: &str, env_shell: Option<String>) -> String 
 }
 
 fn restore_command_args(agent: &str, fallback_shell: &str, argv: &[String]) -> Vec<String> {
-    let (_program, args) = crate::platform::shell::restore_command_args(agent, fallback_shell, argv);
+    let (_program, args) =
+        crate::platform::shell::restore_command_args(agent, fallback_shell, argv);
     args
 }
 

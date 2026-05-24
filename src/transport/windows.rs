@@ -29,21 +29,21 @@ use std::time::Duration;
 
 use windows_sys::Win32::Foundation::{
     CloseHandle, DuplicateHandle, GetLastError, ERROR_BROKEN_PIPE, ERROR_FILE_NOT_FOUND,
-    ERROR_IO_INCOMPLETE, ERROR_IO_PENDING, ERROR_NO_DATA, ERROR_OPERATION_ABORTED,
-    ERROR_PIPE_BUSY, ERROR_PIPE_CONNECTED, ERROR_PIPE_NOT_CONNECTED, FALSE, HANDLE,
-    INVALID_HANDLE_VALUE, TRUE, WAIT_OBJECT_0, WAIT_TIMEOUT,
+    ERROR_IO_INCOMPLETE, ERROR_IO_PENDING, ERROR_NO_DATA, ERROR_OPERATION_ABORTED, ERROR_PIPE_BUSY,
+    ERROR_PIPE_CONNECTED, ERROR_PIPE_NOT_CONNECTED, FALSE, HANDLE, INVALID_HANDLE_VALUE, TRUE,
+    WAIT_OBJECT_0, WAIT_TIMEOUT,
 };
 use windows_sys::Win32::Storage::FileSystem::{
     CreateFileW, ReadFile, WriteFile, FILE_FLAG_OVERLAPPED, FILE_SHARE_NONE, OPEN_EXISTING,
+};
+use windows_sys::Win32::System::Pipes::{
+    ConnectNamedPipe, CreateNamedPipeW, DisconnectNamedPipe, PIPE_READMODE_BYTE, PIPE_TYPE_BYTE,
+    PIPE_UNLIMITED_INSTANCES, PIPE_WAIT,
 };
 use windows_sys::Win32::System::Threading::{
     CreateEventW, GetCurrentProcess, WaitForSingleObject, INFINITE,
 };
 use windows_sys::Win32::System::IO::{CancelIoEx, GetOverlappedResult, OVERLAPPED};
-use windows_sys::Win32::System::Pipes::{
-    ConnectNamedPipe, CreateNamedPipeW, DisconnectNamedPipe, PIPE_READMODE_BYTE, PIPE_TYPE_BYTE,
-    PIPE_UNLIMITED_INSTANCES, PIPE_WAIT,
-};
 
 // PIPE_ACCESS_* aren't surfaced by windows-sys 0.59; they're the same bits
 // as FILE_ACCESS_RIGHTS_GENERIC variants on the file-system side. See
@@ -378,7 +378,11 @@ fn duration_to_ms(dur: Option<Duration>) -> u64 {
         None => NEVER,
         Some(d) => {
             let ms = d.as_millis();
-            if ms >= INFINITE as u128 { (INFINITE - 1) as u64 } else { ms as u64 }
+            if ms >= INFINITE as u128 {
+                (INFINITE - 1) as u64
+            } else {
+                ms as u64
+            }
         }
     }
 }
@@ -401,17 +405,7 @@ fn effective_wait_ms(nonblocking: bool, timeout: u64) -> u32 {
 fn duplicate_handle(source: HANDLE) -> io::Result<HANDLE> {
     let mut dup: HANDLE = ptr::null_mut();
     let me = unsafe { GetCurrentProcess() };
-    let ok = unsafe {
-        DuplicateHandle(
-            me,
-            source,
-            me,
-            &mut dup,
-            0,
-            FALSE,
-            DUPLICATE_SAME_ACCESS,
-        )
-    };
+    let ok = unsafe { DuplicateHandle(me, source, me, &mut dup, 0, FALSE, DUPLICATE_SAME_ACCESS) };
     if ok == 0 {
         return Err(last_io_error());
     }
@@ -535,9 +529,7 @@ fn map_io_error(code: u32) -> io::Error {
             // Treat broken-pipe as EOF on read — std does the same.
             io::Error::new(io::ErrorKind::BrokenPipe, "pipe closed")
         }
-        ERROR_OPERATION_ABORTED => {
-            io::Error::new(io::ErrorKind::WouldBlock, "operation cancelled")
-        }
+        ERROR_OPERATION_ABORTED => io::Error::new(io::ErrorKind::WouldBlock, "operation cancelled"),
         ERROR_IO_INCOMPLETE => io::Error::new(io::ErrorKind::WouldBlock, "io incomplete"),
         _ => io::Error::from_raw_os_error(code as i32),
     }
@@ -603,10 +595,8 @@ impl LocalListener {
                                 GetOverlappedResult(pending, &overlapped, &mut tmp, TRUE)
                             };
                             // Stash the instance back so the next accept reuses it.
-                            *self
-                                .next_instance
-                                .lock()
-                                .expect("next_instance poisoned") = Some(pending);
+                            *self.next_instance.lock().expect("next_instance poisoned") =
+                                Some(pending);
                             return Err(io::Error::new(
                                 io::ErrorKind::WouldBlock,
                                 "no pending connection",
@@ -788,11 +778,18 @@ fn next_pair_nonce() -> u64 {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_nanos() as u64)
         .unwrap_or(0);
-    pid.wrapping_mul(1_000_003).wrapping_add(stamp).wrapping_add(n)
+    pid.wrapping_mul(1_000_003)
+        .wrapping_add(stamp)
+        .wrapping_add(n)
 }
 
 fn make_pair_name(nonce: u64, channel: u8) -> Vec<u16> {
-    let raw = format!(r"\\.\pipe\herdr-pair-{}-{}-{}", std::process::id(), nonce, channel);
+    let raw = format!(
+        r"\\.\pipe\herdr-pair-{}-{}-{}",
+        std::process::id(),
+        nonce,
+        channel
+    );
     let os = std::ffi::OsString::from(raw);
     let mut wide: Vec<u16> = os.encode_wide().collect();
     wide.push(0);

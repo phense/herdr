@@ -46,33 +46,60 @@ mod session;
 mod sound;
 mod transport;
 
-#[cfg(unix)] mod agent_resume;
-#[cfg(unix)] mod api;
-#[cfg(unix)] mod app;
-#[cfg(unix)] mod cli;
-#[cfg(unix)] mod client;
-#[cfg(unix)] mod events;
-#[cfg(unix)] mod ghostty;
-#[cfg(unix)] mod integration;
-#[cfg(unix)] mod kitty_graphics;
-#[cfg(unix)] mod layout;
-#[cfg(unix)] mod logging;
-#[cfg(unix)] mod pane;
-#[cfg(unix)] mod persist;
-#[cfg(unix)] mod product_announcements;
-#[cfg(unix)] mod protocol;
-#[cfg(unix)] mod raw_input;
-#[cfg(unix)] mod release_notes;
-#[cfg(unix)] mod remote;
-#[cfg(unix)] mod selection;
-#[cfg(unix)] mod server;
-#[cfg(unix)] mod terminal;
-#[cfg(unix)] mod terminal_notify;
-#[cfg(unix)] mod terminal_theme;
-#[cfg(unix)] mod ui;
-#[cfg(unix)] mod update;
-#[cfg(unix)] mod workspace;
-#[cfg(unix)] mod worktree;
+#[cfg(unix)]
+mod agent_resume;
+#[cfg(unix)]
+mod api;
+#[cfg(unix)]
+mod app;
+#[cfg(unix)]
+mod cli;
+#[cfg(unix)]
+mod client;
+#[cfg(unix)]
+mod events;
+#[cfg(unix)]
+mod ghostty;
+#[cfg(unix)]
+mod integration;
+#[cfg(unix)]
+mod kitty_graphics;
+#[cfg(unix)]
+mod layout;
+#[cfg(unix)]
+mod logging;
+#[cfg(unix)]
+mod pane;
+#[cfg(unix)]
+mod persist;
+#[cfg(unix)]
+mod product_announcements;
+#[cfg(unix)]
+mod protocol;
+#[cfg(unix)]
+mod raw_input;
+#[cfg(unix)]
+mod release_notes;
+#[cfg(unix)]
+mod remote;
+#[cfg(unix)]
+mod selection;
+#[cfg(unix)]
+mod server;
+#[cfg(unix)]
+mod terminal;
+#[cfg(unix)]
+mod terminal_notify;
+#[cfg(unix)]
+mod terminal_theme;
+#[cfg(unix)]
+mod ui;
+#[cfg(unix)]
+mod update;
+#[cfg(unix)]
+mod workspace;
+#[cfg(unix)]
+mod worktree;
 
 #[cfg(unix)]
 fn init_logging() {

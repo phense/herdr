@@ -375,7 +375,11 @@ mod tests {
         let (program, args) = restore_command_args(
             "codex",
             "/bin/zsh",
-            &["/bin/sh".to_string(), "-c".to_string(), "exit 7".to_string()],
+            &[
+                "/bin/sh".to_string(),
+                "-c".to_string(),
+                "exit 7".to_string(),
+            ],
         );
         assert_eq!(program, "/bin/sh");
         assert_eq!(args[0], "-c");
@@ -393,7 +397,11 @@ mod tests {
         let (program, args) = restore_command_args(
             "codex",
             "pwsh.exe",
-            &["pwsh.exe".to_string(), "-c".to_string(), "exit 7".to_string()],
+            &[
+                "pwsh.exe".to_string(),
+                "-c".to_string(),
+                "exit 7".to_string(),
+            ],
         );
         let lowered = program.to_ascii_lowercase();
         if lowered.ends_with("cmd.exe") {

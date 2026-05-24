@@ -28,8 +28,7 @@ use windows_sys::Win32::System::DataExchange::{
     CloseClipboard, EmptyClipboard, OpenClipboard, SetClipboardData,
 };
 use windows_sys::Win32::System::Diagnostics::ToolHelp::{
-    CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W,
-    TH32CS_SNAPPROCESS,
+    CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS,
 };
 use windows_sys::Win32::System::JobObjects::{
     AssignProcessToJobObject, CreateJobObjectW, JobObjectBasicProcessIdList,
@@ -103,7 +102,13 @@ pub fn assign_to_job(pid: u32) -> io::Result<()> {
         ));
     }
 
-    let proc = unsafe { OpenProcess(PROCESS_TERMINATE | PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid) };
+    let proc = unsafe {
+        OpenProcess(
+            PROCESS_TERMINATE | PROCESS_QUERY_LIMITED_INFORMATION,
+            FALSE,
+            pid,
+        )
+    };
     if proc.is_null() {
         return Err(io::Error::last_os_error());
     }
@@ -196,7 +201,10 @@ pub fn session_processes(pid: u32) -> Vec<u32> {
         return vec![pid];
     }
 
-    let count = buf.header.NumberOfProcessIdsInList.min(buf.ids.len() as u32) as usize;
+    let count = buf
+        .header
+        .NumberOfProcessIdsInList
+        .min(buf.ids.len() as u32) as usize;
     let mut out: Vec<u32> = Vec::with_capacity(count + 1);
     // Always include the root pid first so the caller can identify the
     // tree root unambiguously, even if Windows reports it later in the list.
@@ -477,10 +485,7 @@ mod tests {
     /// `cmd /c timeout` reads stdin and aborts under `Stdio::null`.
     fn spawn_sleeper(seconds: u32) -> std::process::Child {
         Command::new("cmd")
-            .args([
-                "/c",
-                &format!("ping -n {} 127.0.0.1 >NUL", seconds.max(1)),
-            ])
+            .args(["/c", &format!("ping -n {} 127.0.0.1 >NUL", seconds.max(1))])
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::null())

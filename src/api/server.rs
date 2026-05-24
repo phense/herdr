@@ -369,7 +369,10 @@ fn write_text_line_allow_disconnect(stream: &mut LocalStream, value: &str) -> st
     }
 }
 
-fn write_json_line<T: serde::Serialize>(stream: &mut LocalStream, value: &T) -> std::io::Result<()> {
+fn write_json_line<T: serde::Serialize>(
+    stream: &mut LocalStream,
+    value: &T,
+) -> std::io::Result<()> {
     let encoded = serde_json::to_string(value)
         .map_err(|err| std::io::Error::other(format!("failed to encode json: {err}")))?;
     write_text_line(stream, &encoded)

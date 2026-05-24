@@ -48,9 +48,8 @@ fn emit_link_directives(target: &str, lib_dir: &Path) {
         if lib_dir.join("ghostty-vt-static.lib").exists() {
             println!("cargo:rustc-link-lib=static=ghostty-vt-static");
             for sys_lib in [
-                "advapi32", "userenv", "ws2_32", "ntdll", "iphlpapi", "bcrypt",
-                "crypt32", "secur32", "ole32", "shell32", "user32", "kernel32",
-                "dbghelp",
+                "advapi32", "userenv", "ws2_32", "ntdll", "iphlpapi", "bcrypt", "crypt32",
+                "secur32", "ole32", "shell32", "user32", "kernel32", "dbghelp",
             ] {
                 println!("cargo:rustc-link-lib=dylib={sys_lib}");
             }
