@@ -33,16 +33,24 @@ const NESTED_HERDR_MESSAGES: [&str; 6] = [
     "recursion detected. base case not found. aborting.",
 ];
 
+// Cross-platform modules (path helpers, key parsers, etc.) compile on every
+// host as Goals 1, 2, 5 progressively widen them. Modules still bound to
+// std::os::unix::* stay cfg(unix) until their dedicated migration goal
+// (3 for transport, 4 for IPC consumers, 5 for PTY shell, 7 for clipboard).
+mod config;
+mod detect;
+mod input;
+mod platform;
+mod session;
+mod sound;
+
 #[cfg(unix)] mod agent_resume;
 #[cfg(unix)] mod api;
 #[cfg(unix)] mod app;
 #[cfg(unix)] mod cli;
 #[cfg(unix)] mod client;
-#[cfg(unix)] mod config;
-#[cfg(unix)] mod detect;
 #[cfg(unix)] mod events;
 #[cfg(unix)] mod ghostty;
-#[cfg(unix)] mod input;
 #[cfg(unix)] mod integration;
 #[cfg(unix)] mod ipc;
 #[cfg(unix)] mod kitty_graphics;
@@ -50,7 +58,6 @@ const NESTED_HERDR_MESSAGES: [&str; 6] = [
 #[cfg(unix)] mod logging;
 #[cfg(unix)] mod pane;
 #[cfg(unix)] mod persist;
-#[cfg(unix)] mod platform;
 #[cfg(unix)] mod product_announcements;
 #[cfg(unix)] mod protocol;
 #[cfg(unix)] mod raw_input;
@@ -58,8 +65,6 @@ const NESTED_HERDR_MESSAGES: [&str; 6] = [
 #[cfg(unix)] mod remote;
 #[cfg(unix)] mod selection;
 #[cfg(unix)] mod server;
-#[cfg(unix)] mod session;
-#[cfg(unix)] mod sound;
 #[cfg(unix)] mod terminal;
 #[cfg(unix)] mod terminal_notify;
 #[cfg(unix)] mod terminal_theme;

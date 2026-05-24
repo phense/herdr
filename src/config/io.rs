@@ -13,22 +13,62 @@ pub fn app_dir_name() -> &'static str {
 }
 
 pub fn config_dir() -> PathBuf {
-    if let Ok(dir) = std::env::var("XDG_CONFIG_HOME") {
-        PathBuf::from(dir).join(app_dir_name())
-    } else if let Ok(home) = std::env::var("HOME") {
-        PathBuf::from(home).join(format!(".config/{}", app_dir_name()))
-    } else {
+    #[cfg(windows)]
+    {
+        if let Ok(dir) = std::env::var("APPDATA") {
+            return PathBuf::from(dir).join(app_dir_name());
+        }
+        if let Ok(profile) = std::env::var("USERPROFILE") {
+            return PathBuf::from(profile)
+                .join("AppData")
+                .join("Roaming")
+                .join(app_dir_name());
+        }
+        return std::env::temp_dir().join(app_dir_name());
+    }
+    #[cfg(unix)]
+    {
+        if let Ok(dir) = std::env::var("XDG_CONFIG_HOME") {
+            return PathBuf::from(dir).join(app_dir_name());
+        }
+        if let Ok(home) = std::env::var("HOME") {
+            return PathBuf::from(home).join(format!(".config/{}", app_dir_name()));
+        }
         PathBuf::from(format!("/tmp/{}", app_dir_name()))
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        std::env::temp_dir().join(app_dir_name())
     }
 }
 
 pub fn state_dir() -> PathBuf {
-    if let Ok(dir) = std::env::var("XDG_STATE_HOME") {
-        PathBuf::from(dir).join(app_dir_name())
-    } else if let Ok(home) = std::env::var("HOME") {
-        PathBuf::from(home).join(format!(".local/state/{}", app_dir_name()))
-    } else {
+    #[cfg(windows)]
+    {
+        if let Ok(dir) = std::env::var("LOCALAPPDATA") {
+            return PathBuf::from(dir).join(app_dir_name());
+        }
+        if let Ok(profile) = std::env::var("USERPROFILE") {
+            return PathBuf::from(profile)
+                .join("AppData")
+                .join("Local")
+                .join(app_dir_name());
+        }
+        return std::env::temp_dir().join(format!("{}-state", app_dir_name()));
+    }
+    #[cfg(unix)]
+    {
+        if let Ok(dir) = std::env::var("XDG_STATE_HOME") {
+            return PathBuf::from(dir).join(app_dir_name());
+        }
+        if let Ok(home) = std::env::var("HOME") {
+            return PathBuf::from(home).join(format!(".local/state/{}", app_dir_name()));
+        }
         PathBuf::from(format!("/tmp/{}-state", app_dir_name()))
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        std::env::temp_dir().join(format!("{}-state", app_dir_name()))
     }
 }
 
@@ -429,6 +469,59 @@ fn upsert_section_raw(content: &str, section: &str, key: &str, value: &str) -> S
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(windows)]
+    #[test]
+    fn config_dir_uses_appdata_on_windows() {
+        let _guard = crate::config::test_config_env_lock().lock().unwrap();
+        let prev = std::env::var_os("APPDATA");
+        std::env::set_var("APPDATA", r"C:\Users\Test\AppData\Roaming");
+        let dir = config_dir();
+        match &prev {
+            Some(v) => std::env::set_var("APPDATA", v),
+            None => std::env::remove_var("APPDATA"),
+        }
+        assert_eq!(
+            dir,
+            PathBuf::from(r"C:\Users\Test\AppData\Roaming").join(app_dir_name())
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn state_dir_uses_localappdata_on_windows() {
+        let _guard = crate::config::test_config_env_lock().lock().unwrap();
+        let prev = std::env::var_os("LOCALAPPDATA");
+        std::env::set_var("LOCALAPPDATA", r"C:\Users\Test\AppData\Local");
+        let dir = state_dir();
+        match &prev {
+            Some(v) => std::env::set_var("LOCALAPPDATA", v),
+            None => std::env::remove_var("LOCALAPPDATA"),
+        }
+        assert_eq!(
+            dir,
+            PathBuf::from(r"C:\Users\Test\AppData\Local").join(app_dir_name())
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn config_dir_uses_xdg_on_unix() {
+        let _guard = crate::config::test_config_env_lock().lock().unwrap();
+        let prev_xdg = std::env::var_os("XDG_CONFIG_HOME");
+        let prev_home = std::env::var_os("HOME");
+        std::env::set_var("XDG_CONFIG_HOME", "/tmp/xdg-test");
+        let dir = config_dir();
+        match prev_xdg {
+            Some(v) => std::env::set_var("XDG_CONFIG_HOME", v),
+            None => std::env::remove_var("XDG_CONFIG_HOME"),
+        }
+        match prev_home {
+            Some(v) => std::env::set_var("HOME", v),
+            None => std::env::remove_var("HOME"),
+        }
+        assert_eq!(dir, PathBuf::from("/tmp/xdg-test").join(app_dir_name()));
+    }
 
     #[test]
     fn upsert_top_level_bool_replaces_existing_value() {

@@ -1,14 +1,23 @@
+// Unix-only socket-connect machinery (stop_session, delete_session, listing live
+// sessions) hides behind `cfg(unix)` until Goal 3's LocalStream lands. The
+// cross-platform bits (data_dir_for, name parsing, configure_from_args, etc.)
+// stay always-on so Goal 1 can verify path layout on both targets.
+#[cfg(unix)]
 use std::io::{BufRead, BufReader, Write};
+#[cfg(unix)]
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
+#[cfg(unix)]
 use std::time::{Duration, Instant};
 
 pub const SESSION_ENV_VAR: &str = "HERDR_SESSION";
 pub const DEFAULT_SESSION_NAME: &str = "default";
 
 const MAX_SESSION_NAME_LEN: usize = 64;
+#[cfg(unix)]
 const STOP_WAIT_TIMEOUT: Duration = Duration::from_secs(2);
+#[cfg(unix)]
 const STOP_WAIT_POLL: Duration = Duration::from_millis(25);
 
 static EXPLICIT_SESSION_REQUESTED: AtomicBool = AtomicBool::new(false);
@@ -71,7 +80,7 @@ pub fn configure_from_args(args: &[String]) -> Result<Vec<String>, String> {
 
     if let Some(session) = requested_session {
         apply_explicit_name(&session)?;
-    } else if std::env::var_os(crate::api::SOCKET_PATH_ENV_VAR).is_some() {
+    } else if api_socket_path_env_is_set() {
         EXPLICIT_SESSION_REQUESTED.store(false, Ordering::Relaxed);
     } else if let Ok(session) = std::env::var(SESSION_ENV_VAR) {
         if normalize_name(&session)?.is_none() {
@@ -135,16 +144,37 @@ pub fn active_api_socket_path() -> PathBuf {
     if explicit_session_requested() {
         return api_socket_path_for(active_name().as_deref());
     }
-    if let Ok(path) = std::env::var(crate::api::SOCKET_PATH_ENV_VAR) {
-        return PathBuf::from(path);
+    if let Some(path) = api_socket_path_override() {
+        return path;
     }
     api_socket_path_for(active_name().as_deref())
+}
+
+#[cfg(unix)]
+fn api_socket_path_env_is_set() -> bool {
+    std::env::var_os(crate::api::SOCKET_PATH_ENV_VAR).is_some()
+}
+#[cfg(not(unix))]
+fn api_socket_path_env_is_set() -> bool {
+    false
+}
+
+#[cfg(unix)]
+fn api_socket_path_override() -> Option<PathBuf> {
+    std::env::var(crate::api::SOCKET_PATH_ENV_VAR)
+        .ok()
+        .map(PathBuf::from)
+}
+#[cfg(not(unix))]
+fn api_socket_path_override() -> Option<PathBuf> {
+    None
 }
 
 pub fn client_socket_path_for(name: Option<&str>) -> PathBuf {
     data_dir_for(name).join("herdr-client.sock")
 }
 
+#[cfg(unix)]
 pub fn list_sessions() -> std::io::Result<Vec<SessionInfo>> {
     let mut sessions = vec![session_info(None)];
     let sessions_dir = crate::config::config_dir().join("sessions");
@@ -172,6 +202,7 @@ pub fn list_sessions() -> std::io::Result<Vec<SessionInfo>> {
     Ok(sessions)
 }
 
+#[cfg(unix)]
 pub fn session_info(name: Option<&str>) -> SessionInfo {
     let default = name.is_none();
     let display_name = name.unwrap_or(DEFAULT_SESSION_NAME).to_string();
@@ -190,10 +221,12 @@ pub fn parse_target_name(name: &str) -> Result<Option<String>, String> {
     normalize_name(name)
 }
 
+#[cfg(unix)]
 pub fn stop_session(name: Option<&str>) -> Result<SessionInfo, String> {
     stop_session_with_timeout(name, STOP_WAIT_TIMEOUT)
 }
 
+#[cfg(unix)]
 fn stop_session_with_timeout(name: Option<&str>, timeout: Duration) -> Result<SessionInfo, String> {
     let socket_path = api_socket_path_for(name);
     let request = serde_json::json!({
@@ -233,6 +266,7 @@ fn stop_session_with_timeout(name: Option<&str>, timeout: Duration) -> Result<Se
     Ok(session_info(name))
 }
 
+#[cfg(unix)]
 pub fn delete_session(name: &str) -> Result<SessionInfo, String> {
     if name == DEFAULT_SESSION_NAME {
         return Err("deleting the default session is not supported".to_string());
@@ -253,10 +287,12 @@ pub fn delete_session(name: &str) -> Result<SessionInfo, String> {
     }
 }
 
+#[cfg(unix)]
 fn is_running_at(socket_path: &Path) -> bool {
     socket_path.exists() && UnixStream::connect(socket_path).is_ok()
 }
 
+#[cfg(unix)]
 fn wait_until_stopped(socket_path: &Path, timeout: Duration) -> bool {
     let deadline = Instant::now() + timeout;
     while Instant::now() < deadline {
@@ -312,6 +348,62 @@ fn normalize_name(name: &str) -> Result<Option<String>, String> {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use std::sync::{Mutex, OnceLock};
+
+    fn env_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
+
+    // Use the shared crate-wide config env lock so these tests can't race
+    // against config::io::tests::* (which mutate APPDATA / XDG_CONFIG_HOME).
+    #[cfg(windows)]
+    #[test]
+    fn data_dir_for_uses_appdata_on_windows() {
+        let _guard = crate::config::test_config_env_lock().lock().unwrap();
+        let prev = std::env::var_os("APPDATA");
+        std::env::set_var("APPDATA", r"C:\Users\Test\AppData\Roaming");
+        let dir = data_dir_for(Some("api"));
+        let default_dir = data_dir_for(None);
+        match &prev {
+            Some(v) => std::env::set_var("APPDATA", v),
+            None => std::env::remove_var("APPDATA"),
+        }
+        let app_root =
+            PathBuf::from(r"C:\Users\Test\AppData\Roaming").join(crate::config::app_dir_name());
+        assert_eq!(default_dir, app_root);
+        assert_eq!(dir, app_root.join("sessions").join("api"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn data_dir_for_uses_xdg_on_unix() {
+        let _guard = crate::config::test_config_env_lock().lock().unwrap();
+        let prev_xdg = std::env::var_os("XDG_CONFIG_HOME");
+        let prev_home = std::env::var_os("HOME");
+        std::env::set_var("XDG_CONFIG_HOME", "/tmp/xdg-session");
+        let dir = data_dir_for(Some("api"));
+        let default_dir = data_dir_for(None);
+        match prev_xdg {
+            Some(v) => std::env::set_var("XDG_CONFIG_HOME", v),
+            None => std::env::remove_var("XDG_CONFIG_HOME"),
+        }
+        match prev_home {
+            Some(v) => std::env::set_var("HOME", v),
+            None => std::env::remove_var("HOME"),
+        }
+        let app_root = PathBuf::from("/tmp/xdg-session").join(crate::config::app_dir_name());
+        assert_eq!(default_dir, app_root);
+        assert_eq!(dir, app_root.join("sessions").join("api"));
+    }
+}
+
+// Tests below still reach into the cfg(unix)-gated stop/delete/list helpers
+// and the gated `crate::api` constant. Until Goals 3 and 4 land a
+// LocalStream / cross-platform IPC layer they only run on unix targets.
+#[cfg(all(test, unix))]
+mod unix_tests {
     use super::*;
     use std::sync::{Mutex, OnceLock};
 

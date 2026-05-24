@@ -36,18 +36,30 @@ fn emit_link_directives(target: &str, lib_dir: &Path) {
         let static_lib = lib_dir.join("libghostty-vt.a");
         println!("cargo:rustc-link-arg={}", static_lib.display());
     } else if target.contains("windows") {
-        // build.zig installs the Windows static lib as `ghostty-vt-static.lib`
-        // (avoiding a collision with the DLL import library `ghostty-vt.lib`).
-        // On Windows we therefore link against `ghostty-vt-static` and pull in
-        // the Win32 system libs the Zig stdlib + libghostty-vt reference.
-        // See also: scripts/build_vendored_libghostty_vt.ps1
-        println!("cargo:rustc-link-lib=static=ghostty-vt-static");
-        for sys_lib in [
-            "advapi32", "userenv", "ws2_32", "ntdll", "iphlpapi", "bcrypt",
-            "crypt32", "secur32", "ole32", "shell32", "user32", "kernel32",
-            "dbghelp",
-        ] {
-            println!("cargo:rustc-link-lib=dylib={sys_lib}");
+        // The Rust-side ghostty FFI module is gated `cfg(unix)` until the
+        // Windows port (Goals 1–7) finishes; nothing on Windows resolves a
+        // libghostty-vt symbol yet. We therefore *only* emit the link
+        // directives when a real `ghostty-vt-static.lib` exists on disk —
+        // that way `cargo build` / `cargo test` succeed on dev boxes where
+        // the vendored zig build is blocked by host antivirus (see
+        // docs/plans/windows-port/LIBGHOSTTY-WINDOWS-NOTES.md). When the
+        // artifact *is* there, builds against future Windows ghostty
+        // bindings link cleanly.
+        if lib_dir.join("ghostty-vt-static.lib").exists() {
+            println!("cargo:rustc-link-lib=static=ghostty-vt-static");
+            for sys_lib in [
+                "advapi32", "userenv", "ws2_32", "ntdll", "iphlpapi", "bcrypt",
+                "crypt32", "secur32", "ole32", "shell32", "user32", "kernel32",
+                "dbghelp",
+            ] {
+                println!("cargo:rustc-link-lib=dylib={sys_lib}");
+            }
+        } else {
+            println!(
+                "cargo:warning=skipping link directives for libghostty-vt; \
+                 expected {} to exist. See docs/plans/windows-port/LIBGHOSTTY-WINDOWS-NOTES.md.",
+                lib_dir.join("ghostty-vt-static.lib").display()
+            );
         }
     } else {
         println!("cargo:rustc-link-lib=static=ghostty-vt");
