@@ -134,17 +134,17 @@ The branch lives at
   — blocker write-up for the vendored libghostty-vt Zig build on
   AV-protected boxes.
 
-Branch status at filing time (regenerated before submission):
+Branch status (post-rebase onto upstream/master at `420925d`; regenerate before submission):
 
 | Goal | Commit |
 |---|---|
-| 0 — toolchain + scaffolding | `8ebf84c` |
-| 1 — `%APPDATA%` / `%LOCALAPPDATA%` paths | `ded4e94` |
-| 2 — `src/platform/windows.rs` (job objects, signals, clipboard, notifications) | `d5c67e0` |
-| 3 — `src/transport/{mod,unix,windows}.rs` | `caa0023` |
-| 4 — migrate IPC consumers (~16 files) to `crate::transport` | `99964aa` |
-| 5 — `src/platform/shell.rs` + pane.rs `/bin/sh` removal | `ad60372` |
-| 6 — `windows-smoke` CI job + `SMOKE.md` | `a8a116d` |
+| 0 — toolchain + scaffolding | `7e77f6b` |
+| 1 — `%APPDATA%` / `%LOCALAPPDATA%` paths | `28fc777` |
+| 2 — `src/platform/windows.rs` (job objects, signals, clipboard, notifications) | `cc67446` |
+| 3 — `src/transport/{mod,unix,windows}.rs` | `8015697` |
+| 4 — migrate IPC consumers (~16 files) to `crate::transport` | `efd4223` |
+| 5 — `src/platform/shell.rs` + pane.rs `/bin/sh` removal | `6054414` |
+| 6 — `windows-smoke` CI job + `SMOKE.md` | `0cc80a5` |
 
 `cargo build --release --locked --target x86_64-pc-windows-msvc`
 finishes in ~3m40s on a fresh Windows runner. The full unit test suite
