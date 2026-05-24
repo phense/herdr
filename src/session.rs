@@ -1,23 +1,18 @@
-// Unix-only socket-connect machinery (stop_session, delete_session, listing live
-// sessions) hides behind `cfg(unix)` until Goal 3's LocalStream lands. The
-// cross-platform bits (data_dir_for, name parsing, configure_from_args, etc.)
-// stay always-on so Goal 1 can verify path layout on both targets.
-#[cfg(unix)]
+// Goal 4 migrated the socket-connect machinery (stop_session, delete_session,
+// listing live sessions) to `crate::transport::LocalStream`, so this module
+// no longer needs the previous `cfg(unix)` gate around its IPC helpers.
 use std::io::{BufRead, BufReader, Write};
-#[cfg(unix)]
-use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-#[cfg(unix)]
 use std::time::{Duration, Instant};
+
+use crate::transport::LocalStream;
 
 pub const SESSION_ENV_VAR: &str = "HERDR_SESSION";
 pub const DEFAULT_SESSION_NAME: &str = "default";
 
 const MAX_SESSION_NAME_LEN: usize = 64;
-#[cfg(unix)]
 const STOP_WAIT_TIMEOUT: Duration = Duration::from_secs(2);
-#[cfg(unix)]
 const STOP_WAIT_POLL: Duration = Duration::from_millis(25);
 
 static EXPLICIT_SESSION_REQUESTED: AtomicBool = AtomicBool::new(false);
@@ -174,7 +169,6 @@ pub fn client_socket_path_for(name: Option<&str>) -> PathBuf {
     data_dir_for(name).join("herdr-client.sock")
 }
 
-#[cfg(unix)]
 pub fn list_sessions() -> std::io::Result<Vec<SessionInfo>> {
     let mut sessions = vec![session_info(None)];
     let sessions_dir = crate::config::config_dir().join("sessions");
@@ -202,7 +196,6 @@ pub fn list_sessions() -> std::io::Result<Vec<SessionInfo>> {
     Ok(sessions)
 }
 
-#[cfg(unix)]
 pub fn session_info(name: Option<&str>) -> SessionInfo {
     let default = name.is_none();
     let display_name = name.unwrap_or(DEFAULT_SESSION_NAME).to_string();
@@ -221,12 +214,10 @@ pub fn parse_target_name(name: &str) -> Result<Option<String>, String> {
     normalize_name(name)
 }
 
-#[cfg(unix)]
 pub fn stop_session(name: Option<&str>) -> Result<SessionInfo, String> {
     stop_session_with_timeout(name, STOP_WAIT_TIMEOUT)
 }
 
-#[cfg(unix)]
 fn stop_session_with_timeout(name: Option<&str>, timeout: Duration) -> Result<SessionInfo, String> {
     let socket_path = api_socket_path_for(name);
     let request = serde_json::json!({
@@ -234,7 +225,7 @@ fn stop_session_with_timeout(name: Option<&str>, timeout: Duration) -> Result<Se
         "method": "server.stop",
         "params": {}
     });
-    let mut stream = UnixStream::connect(&socket_path).map_err(|err| {
+    let mut stream = LocalStream::connect(&socket_path).map_err(|err| {
         format!(
             "session {} is not running or cannot be reached at {}: {err}",
             name.unwrap_or(DEFAULT_SESSION_NAME),
@@ -266,7 +257,6 @@ fn stop_session_with_timeout(name: Option<&str>, timeout: Duration) -> Result<Se
     Ok(session_info(name))
 }
 
-#[cfg(unix)]
 pub fn delete_session(name: &str) -> Result<SessionInfo, String> {
     if name == DEFAULT_SESSION_NAME {
         return Err("deleting the default session is not supported".to_string());
@@ -287,12 +277,10 @@ pub fn delete_session(name: &str) -> Result<SessionInfo, String> {
     }
 }
 
-#[cfg(unix)]
 fn is_running_at(socket_path: &Path) -> bool {
-    socket_path.exists() && UnixStream::connect(socket_path).is_ok()
+    socket_path.exists() && LocalStream::connect(socket_path).is_ok()
 }
 
-#[cfg(unix)]
 fn wait_until_stopped(socket_path: &Path, timeout: Duration) -> bool {
     let deadline = Instant::now() + timeout;
     while Instant::now() < deadline {
@@ -695,7 +683,7 @@ mod unix_tests {
         let socket_path = api_socket_path_for(Some(session_name));
         std::fs::create_dir_all(socket_path.parent().unwrap()).unwrap();
         let _ = std::fs::remove_file(&socket_path);
-        let listener = std::os::unix::net::UnixListener::bind(&socket_path).unwrap();
+        let listener = crate::transport::LocalListener::bind(&socket_path).unwrap();
         listener.set_nonblocking(true).unwrap();
         let keep_running = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
         let keep_running_for_thread = keep_running.clone();

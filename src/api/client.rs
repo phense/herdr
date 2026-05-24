@@ -1,8 +1,9 @@
 use std::fmt;
 use std::io::{self, BufRead, BufReader, Write};
-use std::os::unix::net::UnixStream;
 use std::path::PathBuf;
 use std::time::Duration;
+
+use crate::transport::LocalStream;
 
 use serde::de::DeserializeOwned;
 
@@ -119,13 +120,13 @@ impl ApiClient {
         }
     }
 
-    fn connect(&self) -> io::Result<UnixStream> {
-        UnixStream::connect(self.socket_path())
+    fn connect(&self) -> io::Result<LocalStream> {
+        LocalStream::connect(self.socket_path())
     }
 }
 
 pub struct EventStream {
-    reader: BufReader<UnixStream>,
+    reader: BufReader<LocalStream>,
 }
 
 impl EventStream {
@@ -176,7 +177,7 @@ impl From<serde_json::Error> for ApiClientError {
     }
 }
 
-fn write_request(stream: &mut UnixStream, request: &Request) -> Result<(), ApiClientError> {
+fn write_request(stream: &mut LocalStream, request: &Request) -> Result<(), ApiClientError> {
     stream.write_all(serde_json::to_string(request)?.as_bytes())?;
     stream.write_all(b"\n")?;
     stream.flush()?;
@@ -184,7 +185,7 @@ fn write_request(stream: &mut UnixStream, request: &Request) -> Result<(), ApiCl
 }
 
 fn read_json_line<T: DeserializeOwned>(
-    reader: &mut BufReader<UnixStream>,
+    reader: &mut BufReader<LocalStream>,
 ) -> Result<T, ApiClientError> {
     let mut line = String::new();
     let read = reader.read_line(&mut line)?;
@@ -195,7 +196,7 @@ fn read_json_line<T: DeserializeOwned>(
 }
 
 fn read_optional_json_line<T: DeserializeOwned>(
-    reader: &mut BufReader<UnixStream>,
+    reader: &mut BufReader<LocalStream>,
 ) -> Result<Option<T>, ApiClientError> {
     let mut line = String::new();
     let read = reader.read_line(&mut line)?;

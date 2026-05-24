@@ -16,10 +16,11 @@ mod input;
 
 use std::collections::HashSet;
 use std::io::{self, Write as _};
-use std::os::unix::net::UnixStream;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
+
+use crate::transport::LocalStream;
 
 use crossterm::event::{
     DisableBracketedPaste, DisableFocusChange, DisableMouseCapture, EnableBracketedPaste,
@@ -412,7 +413,7 @@ fn requested_keybindings() -> ClientKeybindings {
 /// Sends Hello with the terminal size and protocol version, reads the Welcome
 /// response. Returns Ok(()) on success, or an error if the server rejects us.
 fn do_handshake(
-    stream: &mut UnixStream,
+    stream: &mut LocalStream,
     cols: u16,
     rows: u16,
     cell_width_px: u32,
@@ -524,7 +525,7 @@ fn run_client_with_mode(
     info!(path = %socket_path.display(), "{log_message}");
 
     // Try to connect to the server.
-    let mut stream = match UnixStream::connect(&socket_path) {
+    let mut stream = match LocalStream::connect(&socket_path) {
         Ok(s) => s,
         Err(err) => {
             // Server unreachable — show clear error and exit.
@@ -649,7 +650,7 @@ fn run_client_with_mode(
 /// - server reader thread → reads ServerMessages and sends to main loop
 /// - main loop: coordinates input, output, and server communication
 async fn run_client_loop(
-    stream: UnixStream,
+    stream: LocalStream,
     cols: u16,
     rows: u16,
     should_quit: Arc<AtomicBool>,
@@ -894,7 +895,7 @@ async fn run_client_loop(
 /// Blocking thread that reads ServerMessages from the server and sends them
 /// to the main event loop.
 fn server_reader_thread(
-    mut stream: UnixStream,
+    mut stream: LocalStream,
     event_tx: tokio::sync::mpsc::Sender<ClientLoopEvent>,
     should_quit: &Arc<AtomicBool>,
     max_frame_size: usize,
@@ -947,7 +948,7 @@ fn server_reader_thread(
 // ---------------------------------------------------------------------------
 
 /// Writes a message to the server stream (blocking).
-fn write_to_server(stream: &mut UnixStream, msg: &ClientMessage) -> io::Result<()> {
+fn write_to_server(stream: &mut LocalStream, msg: &ClientMessage) -> io::Result<()> {
     protocol::write_message(stream, msg).map_err(|e| io::Error::other(e.to_string()))
 }
 

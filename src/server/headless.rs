@@ -17,7 +17,6 @@
 use std::collections::HashMap;
 use std::fs;
 use std::io;
-use std::os::unix::net::UnixListener;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -30,6 +29,8 @@ use tracing::{debug, error, info, warn};
 
 use base64::Engine;
 use bytes::Bytes;
+
+use crate::transport::LocalListener;
 
 use crate::api;
 use crate::app;
@@ -84,7 +85,7 @@ const MIN_ROWS: u16 = 24;
 #[allow(dead_code)]
 const SHUTDOWN_API_TIMEOUT: Duration = Duration::from_secs(5);
 
-/// How often the idle headless loop wakes to poll the std UnixListener for new
+/// How often the idle headless loop wakes to poll the std LocalListener for new
 /// client connections.
 ///
 /// The listener is non-blocking and not integrated into `tokio::select!`, so
@@ -100,7 +101,7 @@ const CLIENT_ACCEPT_POLL_INTERVAL: Duration = Duration::from_millis(250);
 /// The headless server — runs the herdr event loop without a real terminal.
 pub struct HeadlessServer {
     app: app::App,
-    client_listener: UnixListener,
+    client_listener: LocalListener,
     client_socket_path: PathBuf,
     clients: HashMap<u64, ClientConnection>,
     next_client_id: u64,
@@ -213,7 +214,7 @@ impl HeadlessServer {
         let client_path = client_socket_path();
         prepare_socket_path(&client_path)?;
 
-        let listener = UnixListener::bind(&client_path)?;
+        let listener = LocalListener::bind(&client_path)?;
         restrict_socket_permissions(&client_path)?;
         info!(path = %client_path.display(), "client protocol socket listening");
 
@@ -2335,7 +2336,7 @@ mod tests {
         let _ = fs::create_dir_all(&dir);
         let socket_path = dir.join("client.sock");
         let _ = fs::remove_file(&socket_path);
-        let listener = UnixListener::bind(&socket_path).expect("bind test listener");
+        let listener = LocalListener::bind(&socket_path).expect("bind test listener");
         listener
             .set_nonblocking(true)
             .expect("set listener nonblocking");

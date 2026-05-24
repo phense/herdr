@@ -1,15 +1,15 @@
 use std::io;
-use std::os::unix::net::UnixListener;
 use std::sync::{atomic::AtomicBool, Arc};
 
 use tokio::sync::mpsc;
 use tracing::{debug, error, warn};
 
 use crate::server::client_transport::{self, ServerEvent};
+use crate::transport::LocalListener;
 
 /// Accepts pending thin-client connections and starts their handshake readers.
 pub(crate) fn accept_pending_client_connections(
-    listener: &UnixListener,
+    listener: &LocalListener,
     next_client_id: &mut u64,
     should_quit: &Arc<AtomicBool>,
     server_event_tx: &mpsc::Sender<ServerEvent>,

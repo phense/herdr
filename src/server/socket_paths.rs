@@ -86,8 +86,9 @@ pub(crate) fn restrict_socket_permissions(path: &Path) -> io::Result<()> {
 mod tests {
     use super::*;
     use std::fs;
-    use std::os::unix::net::UnixListener;
     use std::time::Duration;
+
+    use crate::transport::{LocalListener, LocalStream};
 
     #[test]
     fn client_socket_path_derived_from_api_socket_override() {
@@ -138,12 +139,12 @@ mod tests {
         let socket_path = dir.join("stale.sock");
 
         {
-            let _listener = UnixListener::bind(&socket_path).expect("bind stale socket");
+            let _listener = LocalListener::bind(&socket_path).expect("bind stale socket");
         }
 
         let deadline = std::time::Instant::now() + Duration::from_secs(1);
         while std::time::Instant::now() < deadline {
-            if std::os::unix::net::UnixStream::connect(&socket_path).is_err() {
+            if LocalStream::connect(&socket_path).is_err() {
                 break;
             }
             std::thread::sleep(Duration::from_millis(10));
@@ -169,7 +170,7 @@ mod tests {
         let _ = fs::create_dir_all(&dir);
         let socket_path = dir.join("live.sock");
 
-        let _listener = UnixListener::bind(&socket_path).expect("bind");
+        let _listener = LocalListener::bind(&socket_path).expect("bind");
 
         let result = prepare_socket_path(&socket_path);
         assert!(result.is_err());

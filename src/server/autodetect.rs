@@ -9,7 +9,7 @@
 //! (escape hatch for users who want the traditional single-process behavior).
 
 use std::io;
-use std::os::unix::net::UnixStream;
+#[cfg(unix)]
 use std::os::unix::process::CommandExt;
 use std::path::Path;
 use std::path::PathBuf;
@@ -19,6 +19,7 @@ use std::time::Duration;
 use tracing::{info, warn};
 
 use super::socket_paths::client_socket_path;
+use crate::transport::LocalStream;
 
 /// Maximum time to wait for the server's client socket to become ready
 /// after spawning the server process.
@@ -39,7 +40,7 @@ const STATUS_REQUEST_TIMEOUT: Duration = Duration::from_secs(2);
 /// This works by attempting to connect to the client socket. If the connection
 /// succeeds, a server is running. If the socket file doesn't exist or the
 /// connection is refused, no server is running. Stale sockets (from a crashed
-/// server) are detected because `UnixStream::connect` returns `ConnectionRefused`
+/// server) are detected because `LocalStream::connect` returns `ConnectionRefused`
 /// when nobody is listening.
 #[allow(dead_code)] // Public API for external use and testing
 pub fn is_server_listening() -> bool {
@@ -52,7 +53,7 @@ fn is_server_listening_at(socket_path: &Path) -> bool {
         return false;
     }
 
-    match UnixStream::connect(socket_path) {
+    match LocalStream::connect(socket_path) {
         Ok(_) => {
             // Server is listening. Close the test connection immediately.
             // The server's handshake handler will time out on this connection
@@ -147,12 +148,15 @@ pub fn spawn_server_daemon() -> io::Result<u32> {
 
 fn build_server_daemon_command(exe: PathBuf) -> Command {
     let mut command = Command::new(&exe);
+    command.arg("server");
+    // On Unix, create a new process group so the server survives the parent's
+    // exit and doesn't receive SIGHUP when the client's terminal closes.
+    // Windows uses a Job Object for kill-on-close (Goal 5) and has no
+    // process-group concept here.
+    #[cfg(unix)]
+    command.process_group(0);
+    // Redirect stdio to /dev/null (NUL on Windows).
     command
-        .arg("server")
-        // Create a new process group so the server survives the parent's exit
-        // and doesn't receive SIGHUP when the client's terminal closes.
-        .process_group(0)
-        // Redirect stdio to /dev/null
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null());
@@ -237,8 +241,9 @@ mod tests {
     use super::*;
     use std::ffi::OsStr;
     use std::io::{BufRead, BufReader, Write};
-    use std::os::unix::net::UnixListener;
     use std::sync::{Mutex, OnceLock};
+
+    use crate::transport::LocalListener;
 
     fn env_lock() -> &'static Mutex<()> {
         static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
@@ -295,7 +300,7 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("s.sock");
 
-        let _listener = UnixListener::bind(&path).unwrap();
+        let _listener = LocalListener::bind(&path).unwrap();
         assert!(is_server_listening_at(&path));
         let _ = std::fs::remove_dir_all(dir);
     }
@@ -309,7 +314,7 @@ mod tests {
         // Create a socket and immediately drop the listener.
         // This leaves a stale socket file with nobody listening.
         {
-            let _listener = UnixListener::bind(&path).unwrap();
+            let _listener = LocalListener::bind(&path).unwrap();
         }
 
         // The socket file exists but nobody is listening.
@@ -324,7 +329,7 @@ mod tests {
         let path = dir.join("s.sock");
 
         // Bind and immediately drop the listener.
-        drop(UnixListener::bind(&path).unwrap());
+        drop(LocalListener::bind(&path).unwrap());
 
         // Socket is stale — should return false.
         assert!(!is_server_listening_at(&path));
@@ -338,7 +343,7 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("s.sock");
 
-        let _listener = UnixListener::bind(&path).unwrap();
+        let _listener = LocalListener::bind(&path).unwrap();
 
         // Should succeed immediately (socket is already ready).
         let result = wait_for_server_socket(&path, Duration::from_millis(100));
@@ -369,7 +374,7 @@ mod tests {
         let path_clone = path.clone();
         std::thread::spawn(move || {
             std::thread::sleep(Duration::from_millis(50));
-            let _listener = UnixListener::bind(&path_clone).unwrap();
+            let _listener = LocalListener::bind(&path_clone).unwrap();
             // Keep the listener alive for a bit.
             std::thread::sleep(Duration::from_secs(1));
         });
@@ -385,7 +390,7 @@ mod tests {
         let dir = unique_test_dir("status");
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("api.sock");
-        let listener = UnixListener::bind(&path).unwrap();
+        let listener = LocalListener::bind(&path).unwrap();
         let handle = std::thread::spawn(move || {
             let (mut stream, _) = listener.accept().unwrap();
             let mut request = String::new();
@@ -434,7 +439,7 @@ mod tests {
         let dir = unique_test_dir("named-protocol");
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("api.sock");
-        let listener = UnixListener::bind(&path).unwrap();
+        let listener = LocalListener::bind(&path).unwrap();
         std::env::set_var(crate::api::SOCKET_PATH_ENV_VAR, &path);
         std::env::set_var(crate::session::SESSION_ENV_VAR, "work");
         crate::session::clear_explicit_session_for_test();

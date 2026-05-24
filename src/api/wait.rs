@@ -1,6 +1,7 @@
-use std::os::unix::net::UnixStream;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+
+use crate::transport::LocalStream;
 
 use regex::Regex;
 
@@ -17,7 +18,7 @@ use crate::api::ApiRequestSender;
 pub(super) fn wait_for_output(
     request_id: String,
     params: crate::api::schema::PaneWaitForOutputParams,
-    stream: &mut UnixStream,
+    stream: &mut LocalStream,
     api_tx: &ApiRequestSender,
     running: &Arc<AtomicBool>,
 ) -> std::io::Result<Option<String>> {

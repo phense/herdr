@@ -10,8 +10,9 @@ use std::collections::BTreeMap;
 use std::env;
 use std::fs;
 use std::io::{self, BufRead, BufReader, IsTerminal, Write};
-use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
+
+use crate::transport::LocalStream;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
@@ -405,7 +406,7 @@ fn api_server_is_running_at(socket_path: &Path) -> bool {
         return false;
     }
 
-    UnixStream::connect(socket_path).is_ok()
+    LocalStream::connect(socket_path).is_ok()
 }
 
 fn api_server_is_running() -> bool {
@@ -417,7 +418,7 @@ fn client_protocol_server_is_running_at(socket_path: &Path) -> bool {
         return false;
     }
 
-    UnixStream::connect(socket_path).is_ok()
+    LocalStream::connect(socket_path).is_ok()
 }
 
 fn client_protocol_server_is_running() -> bool {
@@ -584,7 +585,7 @@ fn stop_server_via_api_at(socket_path: &Path, timeout: Duration) -> Result<(), S
         method: Method::ServerStop(EmptyParams::default()),
     };
 
-    let mut stream = UnixStream::connect(socket_path)
+    let mut stream = LocalStream::connect(socket_path)
         .map_err(|e| format!("failed to connect to running server: {e}"))?;
     stream
         .set_write_timeout(Some(timeout))
@@ -632,7 +633,7 @@ fn server_shutdown_confirmed_at(socket_path: &Path) -> Result<bool, String> {
         return Ok(true);
     }
 
-    match UnixStream::connect(socket_path) {
+    match LocalStream::connect(socket_path) {
         Ok(_) => Ok(false),
         Err(err)
             if matches!(
@@ -1216,7 +1217,7 @@ fn platform_target() -> (&'static str, &'static str) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::os::unix::net::UnixListener;
+    use crate::transport::LocalListener;
     use std::sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
@@ -1241,7 +1242,7 @@ mod tests {
     }
 
     fn spawn_accept_loop(path: &Path) -> (Arc<AtomicBool>, thread::JoinHandle<()>) {
-        let listener = UnixListener::bind(path).unwrap();
+        let listener = LocalListener::bind(path).unwrap();
         listener.set_nonblocking(true).unwrap();
         let running = Arc::new(AtomicBool::new(true));
         let running_thread = Arc::clone(&running);
@@ -1448,7 +1449,7 @@ mod tests {
     #[test]
     fn client_protocol_server_is_running_at_detects_live_socket() {
         let socket_path = unique_test_socket_path("client-live");
-        let listener = UnixListener::bind(&socket_path).unwrap();
+        let listener = LocalListener::bind(&socket_path).unwrap();
 
         assert!(client_protocol_server_is_running_at(&socket_path));
 
@@ -1466,7 +1467,7 @@ mod tests {
     #[test]
     fn stop_server_via_api_accepts_success_response() {
         let socket_path = unique_test_socket_path("stop-ok");
-        let listener = UnixListener::bind(&socket_path).unwrap();
+        let listener = LocalListener::bind(&socket_path).unwrap();
         let handle = thread::spawn(move || {
             let (mut stream, _) = listener.accept().unwrap();
             let mut request = String::new();
@@ -1497,7 +1498,7 @@ mod tests {
     #[test]
     fn stop_server_via_api_times_out_when_server_never_replies() {
         let socket_path = unique_test_socket_path("stop-timeout");
-        let listener = UnixListener::bind(&socket_path).unwrap();
+        let listener = LocalListener::bind(&socket_path).unwrap();
         let handle = thread::spawn(move || {
             let (_stream, _) = listener.accept().unwrap();
             thread::sleep(Duration::from_millis(200));

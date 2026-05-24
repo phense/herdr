@@ -37,6 +37,10 @@ impl LocalStream {
     pub fn shutdown(&self, how: Shutdown) -> io::Result<()> {
         self.0.shutdown(how)
     }
+
+    pub fn pair() -> io::Result<(Self, Self)> {
+        pair()
+    }
 }
 
 impl Read for LocalStream {

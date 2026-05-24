@@ -3,8 +3,9 @@
 use std::collections::BTreeMap;
 use std::fs::{self, File};
 use std::io::{self, IsTerminal, Write as _};
-use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
+
+use crate::transport::{LocalListener, LocalStream};
 use std::process::{Command, Output, Stdio};
 
 use serde::Deserialize;
@@ -166,7 +167,7 @@ pub(crate) fn run_remote_client_bridge() -> io::Result<()> {
     ensure_remote_server_running()?;
 
     let socket_path = crate::server::socket_paths::client_socket_path();
-    let stream = UnixStream::connect(&socket_path).map_err(|err| {
+    let stream = LocalStream::connect(&socket_path).map_err(|err| {
         io::Error::new(
             err.kind(),
             format!(
@@ -966,7 +967,7 @@ impl SshStdioBridge {
         session_name: String,
     ) -> io::Result<Self> {
         let _ = std::fs::remove_file(&local_socket);
-        let listener = UnixListener::bind(&local_socket)?;
+        let listener = LocalListener::bind(&local_socket)?;
         crate::ipc::restrict_socket_permissions(&local_socket, BRIDGE_SOCKET_PERMISSION_MODE)?;
         listener.set_nonblocking(true)?;
 
@@ -1018,7 +1019,7 @@ impl Drop for SshStdioBridge {
 }
 
 fn bridge_connection(
-    stream: UnixStream,
+    stream: LocalStream,
     target: &str,
     remote_herdr: &RemoteHerdr,
     session_name: &str,

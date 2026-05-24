@@ -1,5 +1,7 @@
 //! Integration tests for thin client mode.
 
+#![cfg(unix)]
+
 mod support;
 
 use std::fs;

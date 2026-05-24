@@ -324,6 +324,10 @@ impl LocalStream {
         let event_guard = self.write_event.lock().expect("write_event poisoned");
         overlapped_write(self.write.as_raw(), event_guard.as_raw(), buf, timeout_ms)
     }
+
+    pub fn pair() -> io::Result<(Self, Self)> {
+        pair()
+    }
 }
 
 impl Read for LocalStream {

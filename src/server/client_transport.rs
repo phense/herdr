@@ -5,7 +5,6 @@
 //! `HeadlessServer`.
 
 use std::io::{self, Write};
-use std::os::unix::net::UnixStream;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -18,6 +17,7 @@ use crate::protocol::{
     RenderEncoding, ServerMessage, MAX_CLIPBOARD_IMAGE_PAYLOAD, MAX_FRAME_SIZE,
     MAX_GRAPHICS_FRAME_SIZE, PROTOCOL_VERSION,
 };
+use crate::transport::LocalStream;
 
 /// Minimum accepted attached client size.
 ///
@@ -130,7 +130,7 @@ fn parse_client_keybindings(
 /// Reads the `Hello` message, validates the version, sends `Welcome`,
 /// and then enters a read loop forwarding messages to the server event channel.
 pub(crate) fn handle_client_handshake(
-    mut stream: UnixStream,
+    mut stream: LocalStream,
     client_id: u64,
     server_event_tx: &mpsc::Sender<ServerEvent>,
     should_quit: &Arc<AtomicBool>,
@@ -272,7 +272,7 @@ pub(crate) fn handle_client_handshake(
 
 /// The client writer loop — prioritizes control messages over render frames.
 fn client_writer_loop(
-    mut stream: UnixStream,
+    mut stream: LocalStream,
     client_id: u64,
     control_rx: std::sync::mpsc::Receiver<Vec<u8>>,
     render_rx: std::sync::mpsc::Receiver<Vec<u8>>,
@@ -338,7 +338,7 @@ fn client_writer_loop(
     debug!("client writer thread exiting");
 }
 
-fn write_framed_bytes(stream: &mut UnixStream, data: &[u8]) -> bool {
+fn write_framed_bytes(stream: &mut LocalStream, data: &[u8]) -> bool {
     if let Err(err) = stream.write_all(data) {
         debug!(err = %err, "client write failed, closing writer");
         return false;
@@ -352,7 +352,7 @@ fn write_framed_bytes(stream: &mut UnixStream, data: &[u8]) -> bool {
 
 /// The client read loop — reads messages from the client and forwards to the server event channel.
 fn client_read_loop(
-    mut stream: UnixStream,
+    mut stream: LocalStream,
     client_id: u64,
     server_event_tx: &mpsc::Sender<ServerEvent>,
     should_quit: &Arc<AtomicBool>,
@@ -558,7 +558,7 @@ new_tab = "ctrl+notakey"
 
     #[test]
     fn handshake_negotiates_terminal_ansi_encoding() {
-        let (mut client_stream, server_stream) = UnixStream::pair().expect("socket pair");
+        let (mut client_stream, server_stream) = LocalStream::pair().expect("socket pair");
         let (server_event_tx, mut server_event_rx) = mpsc::channel(4);
         let should_quit = Arc::new(AtomicBool::new(false));
         let handshake_quit = should_quit.clone();
@@ -629,7 +629,7 @@ new_tab = "ctrl+notakey"
 
     #[test]
     fn client_read_loop_rejects_oversized_input() {
-        let (mut client_stream, server_stream) = UnixStream::pair().expect("socket pair");
+        let (mut client_stream, server_stream) = LocalStream::pair().expect("socket pair");
         let (server_event_tx, mut server_event_rx) = mpsc::channel(4);
         let should_quit = Arc::new(AtomicBool::new(false));
         let read_quit = should_quit.clone();

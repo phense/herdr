@@ -1,7 +1,8 @@
 //! Wire protocol for herdr server/client communication.
 //!
 //! Defines the message types, framing, version negotiation, and safety
-//! constraints for the binary protocol over Unix domain sockets.
+//! constraints for the binary protocol over the cross-platform local-socket
+//! transport (`crate::transport::LocalStream`).
 
 use std::collections::HashMap;
 use std::io::{self, Read, Write};
@@ -510,8 +511,9 @@ impl From<io::Error> for FramingError {
 /// Serializes a message and writes it as a length-prefixed frame:
 /// `[u32LE length][bincode payload]`.
 ///
-/// This is a blocking/synchronous write suitable for use with `std::os::unix::net::UnixStream`
-/// in blocking mode, or with any `Write` implementor.
+/// This is a blocking/synchronous write suitable for use with
+/// `crate::transport::LocalStream` in blocking mode, or with any `Write`
+/// implementor.
 ///
 /// # Errors
 ///
@@ -1477,13 +1479,11 @@ mod tests {
         assert!(write_message(&mut buf, &msg).is_ok());
     }
 
-    // ---- Unix socketpair integration test ----
+    // ---- Local-socket pair integration test ----
 
     #[test]
-    fn framing_over_unix_socketpair() {
-        use std::os::unix::net::UnixStream;
-
-        let (mut a, mut b) = UnixStream::pair().expect("socketpair");
+    fn framing_over_pair() {
+        let (mut a, mut b) = crate::transport::pair().expect("transport pair");
 
         let messages = vec![
             ClientMessage::Hello {
