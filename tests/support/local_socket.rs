@@ -54,6 +54,14 @@ pub fn unique_socket_path(prefix: &str) -> PathBuf {
 /// need a private working tree (config home, runtime dir, ...). Replaces the
 /// `/tmp/<test-name>-<pid>-<nanos>` literals that used to live in every test
 /// file.
+///
+/// The basename is hashed down to a fixed-width 16-hex token so the resulting
+/// `<TMPDIR>/<basename>/runtime/herdr.sock` path stays under the macOS
+/// `SUN_LEN` budget — `$TMPDIR` on macOS is `/var/folders/<2>/<28>/T/`
+/// (~49 chars, canonicalizing to `/private/var/...` = +8) which leaves only
+/// ~30 chars for the basename + `/runtime/herdr.sock`. The label survives
+/// only through the hash, so callers can still pass a human-readable
+/// prefix.
 pub fn unique_test_base(label: &str) -> PathBuf {
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -61,10 +69,14 @@ pub fn unique_test_base(label: &str) -> PathBuf {
         .unwrap_or(0);
     let counter = COUNTER.fetch_add(1, Ordering::Relaxed);
 
-    std::env::temp_dir().join(format!(
-        "{label}-{pid}-{nanos}-{counter}",
-        pid = std::process::id(),
-    ))
+    let mut hasher = DefaultHasher::new();
+    label.hash(&mut hasher);
+    std::process::id().hash(&mut hasher);
+    nanos.hash(&mut hasher);
+    counter.hash(&mut hasher);
+    let hash = hasher.finish();
+
+    std::env::temp_dir().join(format!("ht-{hash:016x}"))
 }
 
 #[cfg(test)]
@@ -84,6 +96,22 @@ mod tests {
         let b = unique_test_base("foo");
         assert_ne!(a, b);
         assert!(a.starts_with(std::env::temp_dir()));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn unique_test_base_socket_path_fits_sun_len_budget() {
+        // Tests append `runtime/herdr.sock` (19 bytes) and the macOS
+        // `/private/` prefix is added during canonicalization (+8 bytes), so
+        // keep the result under 96 to leave headroom against the 104-byte
+        // `sun_path` ceiling.
+        let base = unique_test_base("integration-test");
+        let socket = base.join("runtime").join("herdr.sock");
+        let bytes = socket.as_os_str().len() + "/private".len();
+        assert!(
+            bytes < 104,
+            "base + runtime/herdr.sock too long: {bytes} bytes ({socket:?})"
+        );
     }
 
     #[cfg(unix)]
