@@ -116,6 +116,11 @@ pub fn shell_command_args(cmd: &str) -> (String, Vec<String>) {
 /// argv, prints a friendly diagnostic on early-exit failure, and then execs
 /// a fallback shell. On windows it returns a PowerShell equivalent meant to
 /// be invoked via `pwsh -NoProfile -Command`.
+///
+/// Currently consumed only by `restore_command_args`; exposed publicly so
+/// future external integration callers (goal 7) can render the script body
+/// for diagnostics / sandbox-resigning without re-deriving it.
+#[allow(dead_code)]
 pub fn restore_wrapper_script() -> &'static str {
     if cfg!(windows) {
         RESTORE_WRAPPER_PS1
@@ -222,10 +227,14 @@ mod tests {
         false
     }
 
+    // Used only by `#[cfg(windows)]` tests further down; gate the helpers
+    // so the linux/macOS dead-code check stays clean.
+    #[cfg(windows)]
     fn always_finds(name: &str) -> bool {
         name == "pwsh.exe"
     }
 
+    #[cfg(windows)]
     fn only_powershell(name: &str) -> bool {
         name == "powershell.exe"
     }

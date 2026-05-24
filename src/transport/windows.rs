@@ -348,12 +348,12 @@ impl Write for LocalStream {
     }
 }
 
-impl<'a> Read for &'a LocalStream {
+impl Read for &LocalStream {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.read_inner(buf)
     }
 }
-impl<'a> Write for &'a LocalStream {
+impl Write for &LocalStream {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.write_inner(buf)
     }

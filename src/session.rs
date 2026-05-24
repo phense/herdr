@@ -337,15 +337,11 @@ fn normalize_name(name: &str) -> Result<Option<String>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::{Mutex, OnceLock};
 
-    fn env_lock() -> &'static Mutex<()> {
-        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-        LOCK.get_or_init(|| Mutex::new(()))
-    }
-
-    // Use the shared crate-wide config env lock so these tests can't race
-    // against config::io::tests::* (which mutate APPDATA / XDG_CONFIG_HOME).
+    // The platform-shared tests below use the crate-wide config env lock so they
+    // can't race against config::io::tests::* (which mutate APPDATA /
+    // XDG_CONFIG_HOME); the unix-only helpers in `mod unix_tests` keep their own
+    // local mutex for the legacy stop/list/delete tests.
     #[cfg(windows)]
     #[test]
     fn data_dir_for_uses_appdata_on_windows() {

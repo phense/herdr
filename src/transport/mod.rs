@@ -36,6 +36,12 @@ pub use backend::{LocalListener, LocalStream};
 /// Create a connected pair of `LocalStream`s for tests / in-process pipes.
 /// On unix this is `UnixStream::pair`; on windows we open a unique private
 /// named pipe and connect to it from the same process.
+///
+/// Most call sites use the inherent `LocalStream::pair()` shortcut and only
+/// the protocol-layer integration test reaches the free fn directly; the
+/// allow keeps the symbol callable without a dead-code warning in
+/// `--all-targets` builds.
+#[allow(dead_code)]
 pub fn pair() -> io::Result<(LocalStream, LocalStream)> {
     backend::pair()
 }

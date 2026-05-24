@@ -325,6 +325,9 @@ fn pane_shell_from(configured_shell: &str, env_shell: Option<String>) -> String 
     crate::platform::shell::pane_shell_from(configured_shell, env_shell)
 }
 
+// Only used in this module's tests — production code calls
+// `restore_command_builder` directly, which forwards to platform::shell.
+#[cfg(test)]
 fn restore_command_args(agent: &str, fallback_shell: &str, argv: &[String]) -> Vec<String> {
     let (_program, args) =
         crate::platform::shell::restore_command_args(agent, fallback_shell, argv);
