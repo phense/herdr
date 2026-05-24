@@ -91,10 +91,27 @@ mod macos;
 #[cfg(target_os = "macos")]
 pub use macos::*;
 
-#[cfg(not(any(target_os = "linux", target_os = "macos")))]
+#[cfg(windows)]
+mod windows;
+#[cfg(windows)]
+pub use windows::*;
+
+#[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
 mod fallback;
-#[cfg(not(any(target_os = "linux", target_os = "macos")))]
+#[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
 pub use fallback::*;
+
+// Linux/macOS callers don't have a job-object equivalent; provide a no-op
+// `assign_to_job` so cross-platform code (PaneRuntime in Goal 5) can call
+// it unconditionally.
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+pub fn assign_to_job(_pid: u32) -> std::io::Result<()> {
+    Ok(())
+}
+#[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
+pub fn assign_to_job(_pid: u32) -> std::io::Result<()> {
+    Ok(())
+}
 
 #[cfg(test)]
 mod tests {
