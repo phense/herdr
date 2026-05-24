@@ -94,8 +94,18 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Download artifacts
+      - name: Download artifact
         uses: actions/download-artifact@v8
+        with:
+          # Single-artifact download into a known dir so softprops finds
+          # the files at a stable path — the no-`name` form behavior
+          # changed in v4+ and doesn't auto-create the per-artifact
+          # subdir reliably for single-artifact runs.
+          name: herdr-windows-x86_64
+          path: dist
+
+      - name: List downloaded artifact (debug)
+        run: ls -la dist
 
       - name: Create release
         uses: softprops/action-gh-release@v3
@@ -103,9 +113,10 @@ jobs:
           name: ${{ github.ref_name }}
           tag_name: ${{ github.ref_name }}
           prerelease: true
+          fail_on_unmatched_files: true
           files: |
-            herdr-windows-x86_64/herdr-windows-x86_64.exe
-            herdr-windows-x86_64/BUILD_INFO.txt
+            dist/herdr-windows-x86_64.exe
+            dist/BUILD_INFO.txt
           body: |
             **Unsigned Windows build** from the [`windows-port`](https://github.com/phense/herdr/tree/windows-port) branch.
 
