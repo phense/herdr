@@ -80,14 +80,16 @@ just release 0.x.y
 
 `just release 0.x.y` prepares the changelog entry, bumps `Cargo.toml`, runs tests, commits, tags, and pushes. GitHub Actions builds the binaries after the tag is pushed, creates the GitHub release, uploads all four binary assets, then updates `website/latest.json` on `master` automatically.
 
-The release workflow must publish these four assets:
+The release workflow must publish these six assets:
 
 - `herdr-linux-x86_64`
 - `herdr-linux-aarch64`
 - `herdr-macos-x86_64`
 - `herdr-macos-aarch64`
+- `herdr-windows-x86_64.exe`
+- `herdr-windows-aarch64.exe`
 
-`website/latest.json` is the shipped updater source of truth. Keep its schema aligned with `src/update.rs`:
+`website/latest.json` is the shipped updater source of truth. Keep its schema aligned with `src/release_asset.rs::asset_key` (the function the in-app updater calls to look up the right entry):
 
 ```json
 {
@@ -97,12 +99,14 @@ The release workflow must publish these four assets:
     "linux-x86_64": "...",
     "linux-aarch64": "...",
     "macos-x86_64": "...",
-    "macos-aarch64": "..."
+    "macos-aarch64": "...",
+    "windows-x86_64": "...",
+    "windows-aarch64": "..."
   }
 }
 ```
 
-The app update check and the in-app **What's New** flow both depend on that exact manifest shape.
+The app update check and the in-app **What's New** flow both depend on that exact manifest shape. Windows entries point at `.exe` artefacts; the asset-key string itself does not include the extension.
 
 Do not edit `website/latest.json` during normal feature, fix, or test work. It describes the latest published release binaries, not the current unreleased source tree. The release workflow updates it after release assets are published.
 

@@ -42,6 +42,7 @@ mod detect;
 mod input;
 mod ipc;
 mod platform;
+mod release_asset;
 mod session;
 mod sound;
 mod transport;

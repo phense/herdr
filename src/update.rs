@@ -1190,25 +1190,10 @@ fn homebrew_release_notes_body(version: &Version) -> String {
 // Helpers
 // ---------------------------------------------------------------------------
 
-fn platform_target() -> (&'static str, &'static str) {
-    let os = if cfg!(target_os = "linux") {
-        "linux"
-    } else if cfg!(target_os = "macos") {
-        "macos"
-    } else {
-        "unknown"
-    };
-
-    let arch = if cfg!(target_arch = "x86_64") {
-        "x86_64"
-    } else if cfg!(target_arch = "aarch64") {
-        "aarch64"
-    } else {
-        "unknown"
-    };
-
-    (os, arch)
-}
+// `platform_target` and `asset_key` live in `crate::release_asset` so they
+// stay reachable from `cfg(windows)` builds even while the rest of
+// `crate::update` is `cfg(unix)`-gated.
+use crate::release_asset::platform_target;
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -1650,12 +1635,8 @@ mod tests {
         let _ = fs::remove_file(path);
     }
 
-    #[test]
-    fn platform_target_is_known() {
-        let (os, arch) = platform_target();
-        assert!(os == "linux" || os == "macos", "os: {os}");
-        assert!(arch == "x86_64" || arch == "aarch64", "arch: {arch}");
-    }
+    // `platform_target` is exercised in `crate::release_asset::tests`;
+    // see `asset_key_for_{linux,macos,windows}` there.
 
     #[test]
     fn update_manifest_deserializes() {
